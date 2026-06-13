@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/magic_bill_logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Magic Bill</title>
+
+    <meta name="theme-color" content="#000000" />
+    <script>
+      if (localStorage.getItem('sidebarExpanded') === 'false') {
+        document.documentElement.classList.add('collapsed');
+        document.documentElement.classList.remove('expanded');
+      } else {
+        document.documentElement.classList.remove('collapsed');
+        document.documentElement.classList.add('expanded');
+      }
+    </script>
+    <!-- Libs CSS -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800&display=swap" />
+    <!-- Theme CSS -->
+    <link rel="stylesheet" href="/assets/css/theme.css" />
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <!-- Theme JS -->
+    <script src="/assets/js/main.js"></script>
+  </body>
+</html>
