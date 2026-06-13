@@ -16,7 +16,11 @@ import {
   Receipt,
   Printer,
   FolderOpen,
-  DownloadCloud
+  DownloadCloud,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  Info
 } from "lucide-react";
 import MenuManagement from "./components/MenuManagement";
 import GeneralSettings from "./components/GeneralSettings";
@@ -33,7 +37,7 @@ function App() {
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [db, setDb] = useState<Database | null>(null);
   const [loading, setLoading] = useState(true);
-  const [updateStatus, setUpdateStatus] = useState<{ status: 'idle' | 'checking' | 'downloading', progress: number }>({ status: 'checking', progress: 0 });
+  const [updateStatus, setUpdateStatus] = useState<{ status: 'idle' | 'checking' | 'available' | 'downloading' | 'error' | 'not-available', progress: number, errorMsg?: string, version?: string }>({ status: 'idle', progress: 0 });
   const [dbFolderPath, setDbFolderPath] = useState<string | null>(() => localStorage.getItem("dbFolderPath"));
   const [appVersion, setAppVersion] = useState<string>("");
 
@@ -50,14 +54,26 @@ function App() {
     fetchVersion();
   }, []);
 
-  // Check for updates on startup
-  useEffect(() => {
-    async function checkForUpdates() {
-      try {
-        setUpdateStatus({ status: 'checking', progress: 0 });
-        const update = await check();
-        if (update) {
-          setUpdateStatus({ status: 'downloading', progress: 0 });
+  const checkForUpdates = async () => {
+    try {
+      setUpdateStatus({ status: 'checking', progress: 0 });
+      const update = await check();
+      if (update) {
+        setUpdateStatus({ status: 'available', progress: 0, version: update.version });
+      } else {
+        setUpdateStatus({ status: 'not-available', progress: 0 });
+      }
+    } catch (error: any) {
+      console.error("Failed to check for updates:", error);
+      setUpdateStatus({ status: 'error', progress: 0, errorMsg: error.message || String(error) });
+    }
+  };
+
+  const startUpdate = async () => {
+    try {
+      setUpdateStatus({ status: 'downloading', progress: 0 });
+      const update = await check();
+      if (update) {
           let downloaded = 0;
           let contentLength = 0;
           
@@ -79,17 +95,12 @@ function App() {
           });
           
           await relaunch();
-        } else {
-          setUpdateStatus({ status: 'idle', progress: 0 });
-        }
-      } catch (error) {
-        console.error("Failed to check for updates:", error);
-        setUpdateStatus({ status: 'idle', progress: 0 });
       }
+    } catch (error: any) {
+       console.error("Failed to update:", error);
+       setUpdateStatus({ status: 'error', progress: 0, errorMsg: error.message || String(error) });
     }
-    
-    checkForUpdates();
-  }, []);
+  };
 
   // Initialize Database
   useEffect(() => {
@@ -387,19 +398,54 @@ function App() {
     { id: "staff", icon: Users, label: "Staff Management" },
   ];
 
-  if (updateStatus.status === 'checking' || updateStatus.status === 'downloading') {
+  if (updateStatus.status !== 'idle') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--bg-light)', color: 'var(--text-primary)', padding: '2rem' }}>
-        <DownloadCloud size={64} style={{ color: 'var(--primary)', marginBottom: '1rem', animation: updateStatus.status === 'downloading' ? 'bounce 2s infinite' : 'none' }} />
-        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
-          {updateStatus.status === 'checking' ? 'Checking for updates...' : 'Downloading Update...'}
+        {updateStatus.status === 'checking' && <RefreshCw size={64} style={{ color: 'var(--primary)', marginBottom: '1rem', animation: 'spin 2s linear infinite' }} />}
+        {updateStatus.status === 'downloading' && <DownloadCloud size={64} style={{ color: 'var(--primary)', marginBottom: '1rem', animation: 'bounce 2s infinite' }} />}
+        {updateStatus.status === 'available' && <CheckCircle size={64} style={{ color: 'var(--success)', marginBottom: '1rem' }} />}
+        {updateStatus.status === 'not-available' && <Info size={64} style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }} />}
+        {updateStatus.status === 'error' && <XCircle size={64} style={{ color: 'var(--danger)', marginBottom: '1rem' }} />}
+        
+        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem', textAlign: 'center' }}>
+          {updateStatus.status === 'checking' && 'Checking for updates...'}
+          {updateStatus.status === 'downloading' && 'Downloading Update...'}
+          {updateStatus.status === 'available' && `Update Available (v${updateStatus.version})`}
+          {updateStatus.status === 'not-available' && 'App is up to date'}
+          {updateStatus.status === 'error' && 'Update Failed'}
         </h1>
+
         {updateStatus.status === 'downloading' && (
           <div style={{ width: '300px', backgroundColor: 'var(--bg-white)', borderRadius: '0.5rem', overflow: 'hidden', height: '20px', marginTop: '1rem', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)' }}>
             <div style={{ width: `${updateStatus.progress}%`, backgroundColor: 'var(--primary)', height: '100%', transition: 'width 0.3s ease' }}></div>
           </div>
         )}
         {updateStatus.status === 'downloading' && <p style={{ marginTop: '0.5rem', fontWeight: 'bold' }}>{updateStatus.progress}%</p>}
+
+        {updateStatus.status === 'error' && (
+          <p style={{ color: 'var(--danger)', marginTop: '1rem', maxWidth: '400px', textAlign: 'center' }}>
+            {updateStatus.errorMsg}
+          </p>
+        )}
+
+        <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+          {updateStatus.status === 'available' && (
+            <button 
+              onClick={startUpdate}
+              style={{ padding: '0.75rem 1.5rem', fontSize: '1rem', backgroundColor: 'var(--primary)', color: 'var(--primary-fg)', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              Download & Install
+            </button>
+          )}
+          {(updateStatus.status === 'available' || updateStatus.status === 'not-available' || updateStatus.status === 'error') && (
+            <button 
+              onClick={() => setUpdateStatus({ status: 'idle', progress: 0 })}
+              style={{ padding: '0.75rem 1.5rem', fontSize: '1rem', backgroundColor: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              Close
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -469,7 +515,22 @@ function App() {
             <Settings size={24} className="nav-icon" />
             <span className="nav-label">Settings</span>
           </button>
-          {appVersion && <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'bold' }}>v{appVersion}</span>}
+          {appVersion && <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'bold', marginBottom: '4px' }}>v{appVersion}</span>}
+          <button 
+            onClick={checkForUpdates}
+            style={{ 
+              background: 'none', 
+              border: 'none', 
+              color: 'var(--primary)', 
+              fontSize: '0.7rem', 
+              cursor: 'pointer', 
+              textDecoration: 'underline',
+              padding: '4px'
+            }}
+            title="Check for updates"
+          >
+            Check for Updates
+          </button>
         </div>
       </aside>
 

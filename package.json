@@ -1,13 +1,13 @@
 {
   "name": "magic-bill",
   "private": true,
-  "version": "0.1.9",
+  "version": "0.1.10",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "cross-env TAURI_SIGNING_PRIVATE_KEY=dW50cnVzdGVkIGNvbW1lbnQ6IHJzaWduIGVuY3J5cHRlZCBzZWNyZXQga2V5ClJXUlRZMEl5YTkvSkVJQmFPWFZvNndwYldWNWRISEFSbDFSRDhVTm53Yzd3dlMzdkZLd0FBQkFBQUFBQUFBQUFBQUlBQUFBQS9UQ1NCbWVtSTRpbkxaSW1zaU5RUGVZUXR2NVJjOU10K1BsZ2FCRXVqWFdnWmI0KzIrejFpcmlMRXJwTzZsTDlQdU1QU1VOd1p2Q1dyenJzcXFqVDZuTHRJYmtHd2ZPaVk4VFI5VHNxeWYzOE9PdzA1NC83Y01yaG1QTVp4ejF1QUNIQWlWaE13dW89Cg== TAURI_SIGNING_PRIVATE_KEY_PASSWORD= tauri"
   },
   "dependencies": {
     "@tabler/icons-webfont": "^3.44.0",
@@ -29,6 +29,7 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
+    "cross-env": "^10.1.0",
     "typescript": "~5.8.3",
     "vite": "^7.0.4"
   }
