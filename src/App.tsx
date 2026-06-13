@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import Database from "@tauri-apps/plugin-sql";
 import { open } from "@tauri-apps/plugin-dialog";
 import { join } from "@tauri-apps/api/path";
+import { check } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { 
   LayoutDashboard, 
   ReceiptText, 
@@ -12,7 +14,8 @@ import {
   Users,
   Receipt,
   Printer,
-  FolderOpen
+  FolderOpen,
+  DownloadCloud
 } from "lucide-react";
 import MenuManagement from "./components/MenuManagement";
 import GeneralSettings from "./components/GeneralSettings";
@@ -29,13 +32,57 @@ function App() {
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [db, setDb] = useState<Database | null>(null);
   const [loading, setLoading] = useState(true);
+  const [updateStatus, setUpdateStatus] = useState<{ status: 'idle' | 'checking' | 'downloading', progress: number }>({ status: 'idle', progress: 0 });
   const [dbFolderPath, setDbFolderPath] = useState<string | null>(() => localStorage.getItem("dbFolderPath"));
+
+  // Check for updates on startup
+  useEffect(() => {
+    async function checkForUpdates() {
+      try {
+        setUpdateStatus({ status: 'checking', progress: 0 });
+        const update = await check();
+        if (update) {
+          setUpdateStatus({ status: 'downloading', progress: 0 });
+          let downloaded = 0;
+          let contentLength = 0;
+          
+          await update.downloadAndInstall((event) => {
+            switch (event.event) {
+              case 'Started':
+                contentLength = event.data.contentLength || 0;
+                break;
+              case 'Progress':
+                downloaded += event.data.chunkLength;
+                if (contentLength > 0) {
+                  setUpdateStatus({ status: 'downloading', progress: Math.round((downloaded / contentLength) * 100) });
+                }
+                break;
+              case 'Finished':
+                setUpdateStatus({ status: 'downloading', progress: 100 });
+                break;
+            }
+          });
+          
+          await relaunch();
+        } else {
+          setUpdateStatus({ status: 'idle', progress: 0 });
+        }
+      } catch (error) {
+        console.error("Failed to check for updates:", error);
+        setUpdateStatus({ status: 'idle', progress: 0 });
+      }
+    }
+    
+    checkForUpdates();
+  }, []);
 
   // Initialize Database
   useEffect(() => {
     async function initDb() {
-      if (!dbFolderPath) {
-        setLoading(false);
+      if (updateStatus.status !== 'idle' || !dbFolderPath) {
+        if (updateStatus.status === 'idle' && !dbFolderPath) {
+          setLoading(false);
+        }
         return;
       }
       try {
@@ -331,6 +378,23 @@ function App() {
           <FolderOpen size={20} />
           Select Database Folder
         </button>
+      </div>
+    );
+  }
+
+  if (updateStatus.status === 'checking' || updateStatus.status === 'downloading') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--bg-light)', color: 'var(--text-primary)', padding: '2rem' }}>
+        <DownloadCloud size={64} style={{ color: 'var(--primary)', marginBottom: '1rem', animation: updateStatus.status === 'downloading' ? 'bounce 2s infinite' : 'none' }} />
+        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
+          {updateStatus.status === 'checking' ? 'Checking for updates...' : 'Downloading Update...'}
+        </h1>
+        {updateStatus.status === 'downloading' && (
+          <div style={{ width: '300px', backgroundColor: 'var(--bg-white)', borderRadius: '0.5rem', overflow: 'hidden', height: '20px', marginTop: '1rem', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)' }}>
+            <div style={{ width: `${updateStatus.progress}%`, backgroundColor: 'var(--primary)', height: '100%', transition: 'width 0.3s ease' }}></div>
+          </div>
+        )}
+        {updateStatus.status === 'downloading' && <p style={{ marginTop: '0.5rem', fontWeight: 'bold' }}>{updateStatus.progress}%</p>}
       </div>
     );
   }
