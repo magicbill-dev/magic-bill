@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Database from "@tauri-apps/plugin-sql";
 import { open } from "@tauri-apps/plugin-dialog";
 import { join } from "@tauri-apps/api/path";
+import { getVersion } from "@tauri-apps/api/app";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { 
@@ -34,6 +35,20 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [updateStatus, setUpdateStatus] = useState<{ status: 'idle' | 'checking' | 'downloading', progress: number }>({ status: 'idle', progress: 0 });
   const [dbFolderPath, setDbFolderPath] = useState<string | null>(() => localStorage.getItem("dbFolderPath"));
+  const [appVersion, setAppVersion] = useState<string>("");
+
+  // Fetch App Version
+  useEffect(() => {
+    async function fetchVersion() {
+      try {
+        const version = await getVersion();
+        setAppVersion(version);
+      } catch (error) {
+        console.error("Failed to get app version:", error);
+      }
+    }
+    fetchVersion();
+  }, []);
 
   // Check for updates on startup
   useEffect(() => {
@@ -422,15 +437,17 @@ function App() {
           ))}
         </nav>
 
-        <div className="user-profile compact-profile">
+        <div className="user-profile compact-profile" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingBottom: '10px' }}>
           <button 
             className={`nav-item ${isSettingsPanelOpen ? "active" : ""}`}
             onClick={() => setIsSettingsPanelOpen(!isSettingsPanelOpen)}
             title="Settings"
+            style={{ marginBottom: '4px' }}
           >
             <Settings size={24} className="nav-icon" />
             <span className="nav-label">Settings</span>
           </button>
+          {appVersion && <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'bold' }}>v{appVersion}</span>}
         </div>
       </aside>
 
