@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Database from "@tauri-apps/plugin-sql";
 import { Plus, Trash2, Tag, Edit2, X, Check } from "lucide-react";
 
@@ -27,6 +27,9 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
   const [newItemName, setNewItemName] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const itemNameRef = useRef<HTMLInputElement>(null);
+  const itemPriceRef = useRef<HTMLInputElement>(null);
 
   // Category Edit State
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
@@ -105,8 +108,8 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
     }
   };
 
-  const addItem = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const addItem = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!db || !newItemName.trim() || !newItemPrice || selectedCategoryId === null) return;
 
     const nameToSave = newItemName.trim();
@@ -114,6 +117,7 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
     
     setNewItemName("");
     setNewItemPrice("");
+    setTimeout(() => itemNameRef.current?.focus(), 0);
 
     const tempId = Date.now();
     const newItem = {
@@ -292,8 +296,8 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
             <p style={{ color: 'var(--text-secondary)' }}>No categories yet.</p>
           ) : (
             categories.map(cat => (
-              <div 
-                key={cat.id} 
+              <div
+                key={cat.id}
                 onClick={() => { if (editingCategoryId !== cat.id) setSelectedCategoryId(cat.id); }}
                 style={{
                   display: 'flex',
@@ -302,8 +306,8 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
                   padding: '1rem',
                   borderRadius: '0.5rem',
                   cursor: 'pointer',
-                  backgroundColor: selectedCategoryId === cat.id ? 'var(--primary)' : 'rgba(0,0,0,0.2)',
-                  color: selectedCategoryId === cat.id ? 'var(--primary-fg)' : 'var(--text-primary)',
+                  backgroundColor: selectedCategoryId === cat.id ? 'var(--active-bg)' : 'rgba(0,0,0,0.2)',
+                  color: selectedCategoryId === cat.id ? 'var(--primary)' : 'var(--text-primary)',
                   fontWeight: selectedCategoryId === cat.id ? 600 : 500,
                   border: '1px solid rgba(255,255,255,0.05)',
                   transition: 'all 0.2s'
@@ -311,34 +315,35 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
               >
                 {editingCategoryId === cat.id ? (
                    <div style={{ display: 'flex', width: '100%', gap: '0.5rem' }} onClick={e => e.stopPropagation()}>
-                     <input 
+                     <input
                        autoFocus
                        value={editCategoryName}
                        onChange={e => setEditCategoryName(e.target.value)}
-                       style={{ flex: 1, padding: '0.25rem', borderRadius: '4px', border: '1px solid var(--primary)', background: 'var(--bg-white)', color: 'var(--text-primary)', outline: 'none' }}
+                       className="modern-input"
+                       style={{ flex: 1, padding: '0.4rem 0.75rem', height: 'auto' }}
                      />
-                     <button onClick={() => saveCategoryEdit(cat.id)} style={{ background: 'none', border: 'none', color: 'var(--primary-fg)', cursor: 'pointer', padding: '0.25rem', display: 'flex', alignItems: 'center' }} title="Save"><Check size={16}/></button>
-                     <button onClick={() => setEditingCategoryId(null)} style={{ background: 'none', border: 'none', color: '#ffcccc', cursor: 'pointer', padding: '0.25rem', display: 'flex', alignItems: 'center' }} title="Cancel"><X size={16}/></button>
+                     <button onClick={() => saveCategoryEdit(cat.id)} style={{ background: 'var(--success, #10b981)', border: 'none', color: 'white', cursor: 'pointer', padding: '0.4rem', borderRadius: '4px', display: 'flex', alignItems: 'center' }} title="Save"><Check size={16}/></button>
+                     <button onClick={() => setEditingCategoryId(null)} style={{ background: 'var(--danger, #ef4444)', border: 'none', color: 'white', cursor: 'pointer', padding: '0.4rem', borderRadius: '4px', display: 'flex', alignItems: 'center' }} title="Cancel"><X size={16}/></button>
                    </div>
                 ) : (
                   <>
                     <span>{cat.name}</span>
                     <div style={{ display: 'flex', gap: '0.25rem' }}>
-                      <button 
+                      <button
                         onClick={(e) => { e.stopPropagation(); startCategoryEdit(cat); }}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem', display: 'flex', alignItems: 'center', color: selectedCategoryId === cat.id ? 'var(--primary-fg)' : 'var(--text-secondary)', transition: 'color 0.2s', opacity: selectedCategoryId === cat.id ? 0.7 : 1 }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem', display: 'flex', alignItems: 'center', color: selectedCategoryId === cat.id ? 'var(--text-primary)' : 'var(--text-secondary)', transition: 'color 0.2s' }}
                         title="Edit category"
-                        onMouseOver={e => { e.currentTarget.style.color = selectedCategoryId === cat.id ? 'var(--primary-fg)' : 'var(--primary)'; e.currentTarget.style.opacity = '1'; }}
-                        onMouseOut={e => { e.currentTarget.style.color = selectedCategoryId === cat.id ? 'var(--primary-fg)' : 'var(--text-secondary)'; e.currentTarget.style.opacity = selectedCategoryId === cat.id ? '0.7' : '1'; }}
+                        onMouseOver={e => { e.currentTarget.style.color = 'var(--primary)'; }}
+                        onMouseOut={e => { e.currentTarget.style.color = selectedCategoryId === cat.id ? 'var(--text-primary)' : 'var(--text-secondary)'; }}
                       >
                         <Edit2 size={16} />
                       </button>
-                      <button 
+                      <button
                         onClick={(e) => { e.stopPropagation(); confirmDelete('category', cat.id, cat.name); }}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem', display: 'flex', alignItems: 'center', color: selectedCategoryId === cat.id ? 'var(--primary-fg)' : 'var(--danger)', transition: 'color 0.2s', opacity: selectedCategoryId === cat.id ? 0.7 : 1 }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem', display: 'flex', alignItems: 'center', color: selectedCategoryId === cat.id ? 'var(--text-primary)' : 'var(--danger)', transition: 'color 0.2s' }}
                         title="Delete category"
-                        onMouseOver={e => { e.currentTarget.style.color = selectedCategoryId === cat.id ? 'var(--danger)' : '#cc0000'; e.currentTarget.style.opacity = '1'; }}
-                        onMouseOut={e => { e.currentTarget.style.color = selectedCategoryId === cat.id ? 'var(--primary-fg)' : 'var(--danger)'; e.currentTarget.style.opacity = selectedCategoryId === cat.id ? '0.7' : '1'; }}
+                        onMouseOver={e => { e.currentTarget.style.color = '#cc0000'; }}
+                        onMouseOut={e => { e.currentTarget.style.color = selectedCategoryId === cat.id ? 'var(--text-primary)' : 'var(--danger)'; }}
                       >
                         <Trash2 size={16} />
                       </button>
@@ -367,18 +372,32 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
             <form onSubmit={addItem} className="modern-panel" style={{ flexDirection: 'row', gap: '1rem', padding: '1.5rem', marginBottom: '2rem', alignItems: 'center' }}>
               <div style={{ flex: 2 }}>
                 <input 
+                  ref={itemNameRef}
                   placeholder="Item name (e.g. Masala Dosa)" 
                   value={newItemName}
                   onChange={e => setNewItemName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      itemPriceRef.current?.focus();
+                    }
+                  }}
                   className="modern-input"
                 />
               </div>
               <div style={{ flex: 1 }}>
                 <input 
+                  ref={itemPriceRef}
                   type="number" 
                   placeholder="Price (₹)" 
                   value={newItemPrice}
                   onChange={e => setNewItemPrice(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      // Note: Do not preventDefault here, so the form submits.
+                      // The form's onSubmit handler (addItem) will run.
+                    }
+                  }}
                   step="0.01" min="0"
                   className="modern-input"
                 />

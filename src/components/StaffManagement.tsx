@@ -108,7 +108,7 @@ export default function StaffManagement({ db, activeTab }: StaffManagementProps)
               type="text"
               placeholder="Phone (e.g. 9876543210)"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
               disabled={loading}
               className="modern-input"
             />

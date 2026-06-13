@@ -66,6 +66,8 @@ interface KotConfig {
 interface BillSettingsProps {
   db: Database | null;
   activeTab: string;
+  setUnsavedChanges?: (unsaved: boolean) => void;
+  setTriggerSave?: (saveFn: () => Promise<boolean>) => void;
 }
 
 const fontFamilies = [
@@ -79,7 +81,7 @@ const fontFamilies = [
 
 const fontSizes = ["10px", "12px", "14px", "16px", "18px", "20px", "24px", "28px"];
 
-export default function BillSettings({ db, activeTab }: BillSettingsProps) {
+export default function BillSettings({ db, activeTab, setUnsavedChanges, setTriggerSave }: BillSettingsProps) {
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({
     hotel_name: "RESTAURANT NAME",
     address: "123, Street Name, City",
@@ -145,6 +147,20 @@ export default function BillSettings({ db, activeTab }: BillSettingsProps) {
   const [saving, setSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  const [initialStoreSettings, setInitialStoreSettings] = useState<StoreSettings | null>(null);
+  const [initialBillConfig, setInitialBillConfig] = useState<BillConfig | null>(null);
+  const [initialKotConfig, setInitialKotConfig] = useState<KotConfig | null>(null);
+
+  useEffect(() => {
+    if (setUnsavedChanges && initialStoreSettings && initialBillConfig && initialKotConfig) {
+      const isUnsaved = 
+        JSON.stringify(storeSettings) !== JSON.stringify(initialStoreSettings) ||
+        JSON.stringify(billConfig) !== JSON.stringify(initialBillConfig) ||
+        JSON.stringify(kotConfig) !== JSON.stringify(initialKotConfig);
+      setUnsavedChanges(isUnsaved);
+    }
+  }, [storeSettings, billConfig, kotConfig, initialStoreSettings, initialBillConfig, initialKotConfig, setUnsavedChanges]);
+
   useEffect(() => {
     if (toastMessage) {
       const timer = setTimeout(() => setToastMessage(null), 3000);
@@ -165,19 +181,23 @@ export default function BillSettings({ db, activeTab }: BillSettingsProps) {
       
       const storeRes = await db.select<StoreSettings[]>("SELECT * FROM store_settings WHERE id = 1");
       if (storeRes.length > 0) {
-        setStoreSettings({
+        const s = {
           hotel_name: storeRes[0].hotel_name || "Easybill",
           address: storeRes[0].address || "123 Street Name, City",
           phone_number: storeRes[0].phone_number || "+91 9876543210",
           gst_number: storeRes[0].gst_number || "27AAAAA0000A1Z5",
           fssai_number: storeRes[0].fssai_number || "12345678901234"
-        });
+        };
+        setStoreSettings(s);
+        setInitialStoreSettings(s);
+      } else {
+        setInitialStoreSettings(storeSettings);
       }
 
       const billRes = await db.select<any[]>("SELECT * FROM bill_settings WHERE id = 1");
       if (billRes.length > 0) {
         const row = billRes[0];
-        setBillConfig({
+        const b = {
           footer_message: row.footer_message || "",
           show_gst: row.show_gst !== 0 && row.show_gst !== false,
           show_fssai: row.show_fssai !== 0 && row.show_fssai !== false,
@@ -212,13 +232,17 @@ export default function BillSettings({ db, activeTab }: BillSettingsProps) {
           address_size: row.address_size || "12px",
           table_font_size: row.table_font_size || "12px",
           total_font_size: row.total_font_size || "12px"
-        });
+        };
+        setBillConfig(b);
+        setInitialBillConfig(b);
+      } else {
+        setInitialBillConfig(billConfig);
       }
 
       const kotRes = await db.select<any[]>("SELECT * FROM kot_settings WHERE id = 1");
       if (kotRes.length > 0) {
         const row = kotRes[0];
-        setKotConfig({
+        const k = {
           header_font_family: row.header_font_family || "monospace",
           header_font_size: row.header_font_size || "16px",
           body_font_family: row.body_font_family || "monospace",
@@ -232,7 +256,11 @@ export default function BillSettings({ db, activeTab }: BillSettingsProps) {
           sep_table_header: row.sep_table_header !== 0 && row.sep_table_header !== false,
           sep_table_body: row.sep_table_body !== 0 && row.sep_table_body !== false,
           table_font_size: row.table_font_size || "12px"
-        });
+        };
+        setKotConfig(k);
+        setInitialKotConfig(k);
+      } else {
+        setInitialKotConfig(kotConfig);
       }
     } catch (error) {
       console.error("Failed to fetch settings:", error);
@@ -241,9 +269,8 @@ export default function BillSettings({ db, activeTab }: BillSettingsProps) {
     }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!db) return;
+  const doSave = async () => {
+    if (!db) return false;
 
     try {
       setSaving(true);
@@ -323,13 +350,29 @@ export default function BillSettings({ db, activeTab }: BillSettingsProps) {
         );
       }
 
+      setInitialStoreSettings(storeSettings);
+      setInitialBillConfig(billConfig);
+      setInitialKotConfig(kotConfig);
       setToastMessage("Bill settings saved successfully!");
+      return true;
     } catch (error) {
       console.error("Failed to save bill settings:", error);
       setToastMessage(`Error saving settings: ${error}`);
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  useEffect(() => {
+    if (setTriggerSave) {
+      setTriggerSave(doSave);
+    }
+  }, [storeSettings, billConfig, kotConfig, db, setTriggerSave]);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await doSave();
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

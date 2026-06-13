@@ -345,9 +345,31 @@ function App() {
 
   const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false);
 
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showUnsavedPopup, setShowUnsavedPopup] = useState(false);
+  const [pendingTabNav, setPendingTabNav] = useState<string | null>(null);
+  const [_triggerSave, _setTriggerSave] = useState<(() => Promise<boolean>) | null>(null);
+  const setTriggerSave = (fn: () => Promise<boolean>) => {
+    _setTriggerSave(() => fn);
+  };
+
   const handleNavigate = (label: string) => {
+    if (hasUnsavedChanges) {
+      setPendingTabNav(label);
+      setShowUnsavedPopup(true);
+      return;
+    }
     setActiveTab(label);
     setIsSettingsPanelOpen(false);
+  };
+
+  const handleSettingsNavigate = (label: string) => {
+    if (hasUnsavedChanges) {
+      setPendingTabNav(label);
+      setShowUnsavedPopup(true);
+      return;
+    }
+    setActiveTab(label);
   };
 
   const navItems = [
@@ -458,7 +480,7 @@ function App() {
             <button
               key={item.id}
               className={`nav-item settings-item ${activeTab === item.label ? "active" : ""}`}
-              onClick={() => setActiveTab(item.label)}
+              onClick={() => handleSettingsNavigate(item.label)}
               title={item.label}
             >
               <item.icon size={20} className="nav-icon" />
@@ -491,15 +513,15 @@ function App() {
             )}
 
             {activeTab === "General Settings" && (
-              <GeneralSettings db={db} activeTab="General" />
+              <GeneralSettings db={db} activeTab="General" setUnsavedChanges={setHasUnsavedChanges} setTriggerSave={setTriggerSave} />
             )}
 
             {activeTab === "Bill Settings" && (
-              <BillSettings db={db} activeTab="Bill" />
+              <BillSettings db={db} activeTab="Bill" setUnsavedChanges={setHasUnsavedChanges} setTriggerSave={setTriggerSave} />
             )}
 
             {activeTab === "Printer Settings" && (
-              <PrinterSettings db={db} activeTab="Printer" />
+              <PrinterSettings db={db} activeTab="Printer" setUnsavedChanges={setHasUnsavedChanges} setTriggerSave={setTriggerSave} />
             )}
 
             {activeTab === "Billing" && (
@@ -528,6 +550,65 @@ function App() {
           </>
         )}
       </main>
+
+      {/* Unsaved Changes Popup */}
+      {showUnsavedPopup && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ backgroundColor: 'var(--bg-white)', padding: '2rem', borderRadius: '0.5rem', maxWidth: '400px', width: '100%', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
+            <h3 style={{ marginTop: 0, color: 'var(--text-primary)' }}>Unsaved Changes</h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', lineHeight: '1.5' }}>
+              You have unsaved changes in the current settings tab. Do you want to save them before leaving?
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button 
+                onClick={() => { setShowUnsavedPopup(false); setPendingTabNav(null); }}
+                style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', backgroundColor: 'transparent', color: 'var(--text-primary)', borderRadius: '0.25rem', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  setHasUnsavedChanges(false);
+                  setShowUnsavedPopup(false);
+                  if (pendingTabNav) {
+                    setActiveTab(pendingTabNav);
+                    if (!settingsItems.some(item => item.label === pendingTabNav)) {
+                      setIsSettingsPanelOpen(false);
+                    }
+                    setPendingTabNav(null);
+                  }
+                }}
+                style={{ padding: '0.5rem 1rem', border: 'none', backgroundColor: 'var(--danger)', color: 'white', borderRadius: '0.25rem', cursor: 'pointer' }}
+              >
+                Discard
+              </button>
+              <button 
+                onClick={async () => {
+                  if (_triggerSave) {
+                    const success = await _triggerSave();
+                    if (success) {
+                      setHasUnsavedChanges(false);
+                      setShowUnsavedPopup(false);
+                      if (pendingTabNav) {
+                        setActiveTab(pendingTabNav);
+                        if (!settingsItems.some(item => item.label === pendingTabNav)) {
+                          setIsSettingsPanelOpen(false);
+                        }
+                        setPendingTabNav(null);
+                      }
+                    } else {
+                       setShowUnsavedPopup(false);
+                    }
+                  }
+                }}
+                style={{ padding: '0.5rem 1rem', border: 'none', backgroundColor: 'var(--primary)', color: 'var(--primary-fg)', borderRadius: '0.25rem', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -35,9 +35,11 @@ interface CategoryPrinterMapping {
 interface PrinterSettingsProps {
   db: Database | null;
   activeTab: string;
+  setUnsavedChanges?: (unsaved: boolean) => void;
+  setTriggerSave?: (saveFn: () => Promise<boolean>) => void;
 }
 
-export default function PrinterSettings({ db, activeTab }: PrinterSettingsProps) {
+export default function PrinterSettings({ db, activeTab, setUnsavedChanges, setTriggerSave }: PrinterSettingsProps) {
   const [settings, setSettings] = useState<PrinterConfig>({
     printer_mode: "Single Printer",
     default_printer: "",
@@ -64,6 +66,18 @@ export default function PrinterSettings({ db, activeTab }: PrinterSettingsProps)
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const [initialSettings, setInitialSettings] = useState<PrinterConfig | null>(null);
+  const [initialCategoryPrinters, setInitialCategoryPrinters] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    if (setUnsavedChanges && initialSettings) {
+      const isUnsaved = 
+        JSON.stringify(settings) !== JSON.stringify(initialSettings) ||
+        JSON.stringify(categoryPrinters) !== JSON.stringify(initialCategoryPrinters);
+      setUnsavedChanges(isUnsaved);
+    }
+  }, [settings, categoryPrinters, initialSettings, initialCategoryPrinters, setUnsavedChanges]);
 
   useEffect(() => {
     if (toastMessage) {
@@ -96,10 +110,11 @@ export default function PrinterSettings({ db, activeTab }: PrinterSettingsProps)
         mappings[m.category_id] = m.printer_name;
       });
       setCategoryPrinters(mappings);
+      setInitialCategoryPrinters(mappings);
       
       if (result.length > 0) {
         const row = result[0];
-        setSettings({
+        const s = {
           printer_mode: row.printer_mode || "Single Printer",
           default_printer: row.default_printer || "",
           kot_printing_style: row.kot_printing_style || "Category-wise KOTs",
@@ -116,7 +131,11 @@ export default function PrinterSettings({ db, activeTab }: PrinterSettingsProps)
           kot_print_confirmation: Boolean(row.kot_print_confirmation),
           bill_print_confirmation: Boolean(row.bill_print_confirmation),
           disable_kot: Boolean(row.disable_kot),
-        });
+        };
+        setSettings(s);
+        setInitialSettings(s);
+      } else {
+        setInitialSettings(settings);
       }
       
       setLoading(false);
@@ -131,9 +150,8 @@ export default function PrinterSettings({ db, activeTab }: PrinterSettingsProps)
     }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!db) return;
+  const doSave = async () => {
+    if (!db) return false;
     
     try {
       setSaving(true);
@@ -221,13 +239,28 @@ export default function PrinterSettings({ db, activeTab }: PrinterSettingsProps)
         await db.execute(`DELETE FROM category_printers`);
       }
 
+      setInitialSettings(settings);
+      setInitialCategoryPrinters(categoryPrinters);
       setToastMessage("Printer settings saved successfully!");
+      return true;
     } catch (error) {
       console.error("Failed to save printer settings:", error);
       setToastMessage(`Error saving settings: ${error}`);
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  useEffect(() => {
+    if (setTriggerSave) {
+      setTriggerSave(doSave);
+    }
+  }, [settings, categoryPrinters, db, setTriggerSave]);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await doSave();
   };
 
   return (

@@ -214,6 +214,9 @@ body {
   transition: margin-left 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
   z-index: 9;
   padding: 1rem 0;
+  --sb-text: #8e95a5;
+  --sb-active-text: #2dd4bf;
+  --sb-active-bg: rgba(45, 212, 191, 0.1);
 }
 
 [data-theme="dark"] .settings-panel {
@@ -265,6 +268,7 @@ body {
 
 .settings-item.active {
   background-color: var(--sb-active-bg);
+  color: var(--sb-active-text);
   border-left: none; /* Override primary sidebar active border */
 }
 

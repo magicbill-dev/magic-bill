@@ -312,8 +312,12 @@ export default function Billing({ db }: BillingProps) {
   };
 
   const handleAddToCartFromPopup = () => {
-    if (selectedItemForQty && currentQty > 0) {
-      addToCart(selectedItemForQty, currentQty);
+    if (selectedItemForQty && currentQty !== "" && currentQty > 0) {
+      addToCart(selectedItemForQty, Number(currentQty));
+      closeQtyPopup();
+    } else if (selectedItemForQty) {
+      // If they try to add while it's empty, default to 1
+      addToCart(selectedItemForQty, 1);
       closeQtyPopup();
     }
   };
@@ -1575,7 +1579,18 @@ export default function Billing({ db }: BillingProps) {
                   id="qty-input"
                   type="number"
                   value={currentQty}
-                  onChange={(e) => setCurrentQty(Math.max(1, parseInt(e.target.value) || 1))}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "") {
+                      setCurrentQty("");
+                    } else {
+                      setCurrentQty(Math.max(1, parseInt(val) || 1));
+                    }
+                  }}
+                  onBlur={() => {
+                    if (currentQty === "" || currentQty < 1) setCurrentQty(1);
+                  }}
+                  onFocus={(e) => e.target.select()}
                   className="qty-popup-input"
                 />
                 <button onClick={() => setCurrentQty(q => q + 1)} className="qty-btn"><Plus size={16} /></button>
@@ -1780,14 +1795,25 @@ export default function Billing({ db }: BillingProps) {
                         <input
                           type="number"
                           min="1"
-                          value={item.quantity}
+                          value={item.quantity || ""}
                           onChange={(e) => {
-                            const newQty = parseInt(e.target.value);
-                            if (!isNaN(newQty) && newQty > 0) {
-                              setCart(prevCart => prevCart.map(i => i.id === item.id ? { ...i, quantity: newQty } : i));
-                              setIsKOTPrinted(false);
+                            const val = e.target.value;
+                            if (val === "") {
+                              setCart(prevCart => prevCart.map(i => i.id === item.id ? { ...i, quantity: 0 } : i));
+                            } else {
+                              const newQty = parseInt(val);
+                              if (!isNaN(newQty)) {
+                                setCart(prevCart => prevCart.map(i => i.id === item.id ? { ...i, quantity: newQty } : i));
+                                setIsKOTPrinted(false);
+                              }
                             }
                           }}
+                          onBlur={(e) => {
+                             if (item.quantity === 0 || isNaN(item.quantity)) {
+                                 setCart(prevCart => prevCart.map(i => i.id === item.id ? { ...i, quantity: 1 } : i));
+                             }
+                          }}
+                          onFocus={(e) => e.target.select()}
                           className="qty-popup-input"
                           style={{
                              width: '40px',

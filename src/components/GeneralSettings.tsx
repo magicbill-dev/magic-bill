@@ -14,9 +14,11 @@ interface StoreSettings {
 interface GeneralSettingsProps {
   db: Database | null;
   activeTab: string;
+  setUnsavedChanges?: (unsaved: boolean) => void;
+  setTriggerSave?: (saveFn: () => Promise<boolean>) => void;
 }
 
-export default function GeneralSettings({ db, activeTab }: GeneralSettingsProps) {
+export default function GeneralSettings({ db, activeTab, setUnsavedChanges, setTriggerSave }: GeneralSettingsProps) {
   const [settings, setSettings] = useState<StoreSettings>({
     hotel_name: "",
     address: "",
@@ -24,10 +26,17 @@ export default function GeneralSettings({ db, activeTab }: GeneralSettingsProps)
     gst_number: "",
     fssai_number: ""
   });
+  const [initialSettings, setInitialSettings] = useState<StoreSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [dbFolderPath, setDbFolderPath] = useState<string | null>(() => localStorage.getItem("dbFolderPath"));
+
+  useEffect(() => {
+    if (setUnsavedChanges && initialSettings) {
+      setUnsavedChanges(JSON.stringify(settings) !== JSON.stringify(initialSettings));
+    }
+  }, [settings, initialSettings, setUnsavedChanges]);
 
   useEffect(() => {
     if (toastMessage) {
@@ -48,13 +57,17 @@ export default function GeneralSettings({ db, activeTab }: GeneralSettingsProps)
       setLoading(true);
       const result = await db.select<StoreSettings[]>("SELECT * FROM store_settings WHERE id = 1");
       if (result.length > 0) {
-        setSettings({
+        const fetched = {
           hotel_name: result[0].hotel_name || "",
           address: result[0].address || "",
           phone_number: result[0].phone_number || "",
           gst_number: result[0].gst_number || "",
           fssai_number: result[0].fssai_number || ""
-        });
+        };
+        setSettings(fetched);
+        setInitialSettings(fetched);
+      } else {
+        setInitialSettings(settings);
       }
     } catch (error) {
       console.error("Failed to fetch settings:", error);
@@ -63,9 +76,8 @@ export default function GeneralSettings({ db, activeTab }: GeneralSettingsProps)
     }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!db) return;
+  const doSave = async () => {
+    if (!db) return false;
     
     try {
       setSaving(true);
@@ -84,17 +96,34 @@ export default function GeneralSettings({ db, activeTab }: GeneralSettingsProps)
         );
       }
       
+      setInitialSettings(settings);
       setToastMessage("Settings saved successfully!");
+      return true;
     } catch (error) {
       console.error("Failed to save settings:", error);
       setToastMessage(`Error saving settings: ${error}`);
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  useEffect(() => {
+    if (setTriggerSave) {
+      setTriggerSave(doSave);
+    }
+  }, [settings, db, setTriggerSave]);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await doSave();
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
+    let { name, value } = e.target;
+    if (name === "phone_number") {
+      value = value.replace(/\D/g, '').slice(0, 10);
+    }
     setSettings(prev => ({ ...prev, [name]: value }));
   };
 
