@@ -465,6 +465,16 @@ body {
   box-sizing: border-box;
 }
 
+.modern-select option {
+  background-color: var(--bg-white);
+  color: var(--text-primary);
+}
+
+.modern-select option:checked {
+  background-color: var(--primary);
+  color: var(--primary-fg);
+}
+
 .modern-input:focus, .modern-select:focus {
   outline: none;
   border-color: var(--primary);
@@ -739,8 +749,8 @@ body {
   top: 100%;
   left: 0;
   right: 0;
-  background: var(--bg-white);
-  border: 1px solid var(--text-primary);
+  background: var(--bg-light);
+  border: 1px solid var(--border-color);
   border-radius: 0.5rem;
   margin-top: 0.5rem;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
@@ -755,19 +765,22 @@ body {
   padding: 0.75rem 1.25rem;
   cursor: pointer;
   background: transparent;
+  color: var(--text-primary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
 }
 
 .suggestion-item:hover {
-  background-color: var(--tab-hover-bg);
-}
-
-.suggestion-item.selected {
-  background-color: var(--border-color);
+  background-color: rgba(255, 255, 255, 0.1);
   color: var(--text-primary);
 }
 
-.suggestion-item.selected .item-price {
-  color: var(--primary);
+.suggestion-item.selected {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: var(--text-primary);
 }
 
 .item-name {
@@ -775,8 +788,13 @@ body {
 }
 
 .item-price {
-  color: var(--primary);
+  color: #34d399; /* Bright green */
   font-weight: 600;
+}
+
+.suggestion-item:hover .item-price,
+.suggestion-item.selected .item-price {
+  color: #34d399;
 }
 
 .cart-section {
