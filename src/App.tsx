@@ -33,7 +33,7 @@ function App() {
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [db, setDb] = useState<Database | null>(null);
   const [loading, setLoading] = useState(true);
-  const [updateStatus, setUpdateStatus] = useState<{ status: 'idle' | 'checking' | 'downloading', progress: number }>({ status: 'idle', progress: 0 });
+  const [updateStatus, setUpdateStatus] = useState<{ status: 'idle' | 'checking' | 'downloading', progress: number }>({ status: 'checking', progress: 0 });
   const [dbFolderPath, setDbFolderPath] = useState<string | null>(() => localStorage.getItem("dbFolderPath"));
   const [appVersion, setAppVersion] = useState<string>("");
 
@@ -365,6 +365,23 @@ function App() {
     { id: "staff", icon: Users, label: "Staff Management" },
   ];
 
+  if (updateStatus.status === 'checking' || updateStatus.status === 'downloading') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--bg-light)', color: 'var(--text-primary)', padding: '2rem' }}>
+        <DownloadCloud size={64} style={{ color: 'var(--primary)', marginBottom: '1rem', animation: updateStatus.status === 'downloading' ? 'bounce 2s infinite' : 'none' }} />
+        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
+          {updateStatus.status === 'checking' ? 'Checking for updates...' : 'Downloading Update...'}
+        </h1>
+        {updateStatus.status === 'downloading' && (
+          <div style={{ width: '300px', backgroundColor: 'var(--bg-white)', borderRadius: '0.5rem', overflow: 'hidden', height: '20px', marginTop: '1rem', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)' }}>
+            <div style={{ width: `${updateStatus.progress}%`, backgroundColor: 'var(--primary)', height: '100%', transition: 'width 0.3s ease' }}></div>
+          </div>
+        )}
+        {updateStatus.status === 'downloading' && <p style={{ marginTop: '0.5rem', fontWeight: 'bold' }}>{updateStatus.progress}%</p>}
+      </div>
+    );
+  }
+
   if (!dbFolderPath) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--bg-light)', color: 'var(--text-primary)', padding: '2rem' }}>
@@ -393,23 +410,6 @@ function App() {
           <FolderOpen size={20} />
           Select Database Folder
         </button>
-      </div>
-    );
-  }
-
-  if (updateStatus.status === 'checking' || updateStatus.status === 'downloading') {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--bg-light)', color: 'var(--text-primary)', padding: '2rem' }}>
-        <DownloadCloud size={64} style={{ color: 'var(--primary)', marginBottom: '1rem', animation: updateStatus.status === 'downloading' ? 'bounce 2s infinite' : 'none' }} />
-        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
-          {updateStatus.status === 'checking' ? 'Checking for updates...' : 'Downloading Update...'}
-        </h1>
-        {updateStatus.status === 'downloading' && (
-          <div style={{ width: '300px', backgroundColor: 'var(--bg-white)', borderRadius: '0.5rem', overflow: 'hidden', height: '20px', marginTop: '1rem', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)' }}>
-            <div style={{ width: `${updateStatus.progress}%`, backgroundColor: 'var(--primary)', height: '100%', transition: 'width 0.3s ease' }}></div>
-          </div>
-        )}
-        {updateStatus.status === 'downloading' && <p style={{ marginTop: '0.5rem', fontWeight: 'bold' }}>{updateStatus.progress}%</p>}
       </div>
     );
   }
