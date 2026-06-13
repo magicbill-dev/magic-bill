@@ -68,7 +68,7 @@ export default function Billing({ db }: BillingProps) {
   
   const [isQtyPopupOpen, setIsQtyPopupOpen] = useState(false);
   const [selectedItemForQty, setSelectedItemForQty] = useState<Item | null>(null);
-  const [currentQty, setCurrentQty] = useState(1);
+  const [currentQty, setCurrentQty] = useState<number | "">(1);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isKOTPrinted, setIsKOTPrinted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -1573,7 +1573,7 @@ export default function Billing({ db }: BillingProps) {
             <div className="qty-popup-controls">
               <label htmlFor="qty-input">Quantity:</label>
               <div className="qty-input-wrapper">
-                <button onClick={() => setCurrentQty(q => Math.max(1, q - 1))} className="qty-btn"><Minus size={16} /></button>
+                <button onClick={() => setCurrentQty(q => Math.max(1, (typeof q === 'number' ? q : 1) - 1))} className="qty-btn"><Minus size={16} /></button>
                 <input
                   ref={qtyInputRef}
                   id="qty-input"
@@ -1593,7 +1593,7 @@ export default function Billing({ db }: BillingProps) {
                   onFocus={(e) => e.target.select()}
                   className="qty-popup-input"
                 />
-                <button onClick={() => setCurrentQty(q => q + 1)} className="qty-btn"><Plus size={16} /></button>
+                <button onClick={() => setCurrentQty(q => (typeof q === 'number' ? q : 0) + 1)} className="qty-btn"><Plus size={16} /></button>
               </div>
             </div>
             <button className="btn-add-to-cart" onClick={handleAddToCartFromPopup}>
@@ -1808,7 +1808,7 @@ export default function Billing({ db }: BillingProps) {
                               }
                             }
                           }}
-                          onBlur={(e) => {
+                          onBlur={() => {
                              if (item.quantity === 0 || isNaN(item.quantity)) {
                                  setCart(prevCart => prevCart.map(i => i.id === item.id ? { ...i, quantity: 1 } : i));
                              }
