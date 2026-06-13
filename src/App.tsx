@@ -325,7 +325,7 @@ function App() {
     }
 
     initDb();
-  }, [dbFolderPath]);
+  }, [dbFolderPath, updateStatus.status]);
 
   const handleSelectDbFolder = async () => {
     try {
