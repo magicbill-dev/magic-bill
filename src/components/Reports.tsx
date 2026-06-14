@@ -5,6 +5,7 @@ import { Download, Printer, Calendar as CalendarIcon, TrendingUp, Package, Users
 
 interface ReportsProps {
   db: Database | null;
+  onRequireAuth?: () => void;
 }
 
 interface FinalizedOrder {
@@ -68,6 +69,7 @@ export default function Reports({ db }: ReportsProps) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [categories, setCategories] = useState<Record<number, string>>({});
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [isPlanExpired, setIsPlanExpired] = useState(false);
   
   const [itemSalesFilter, setItemSalesFilter] = useState({
     item: "All Items",
@@ -104,6 +106,30 @@ export default function Reports({ db }: ReportsProps) {
     async function fetchSettings() {
       if (!db) return;
       try {
+        const subResult = await db.select<any[]>("SELECT * FROM subscription WHERE id = 1");
+        let isExpired = true;
+        if (subResult.length > 0 && subResult[0].nextBillingDate) {
+            const nextBilling = new Date(subResult[0].nextBillingDate).getTime();
+            const now = new Date().getTime();
+            const gracePeriodMs = 10 * 24 * 60 * 60 * 1000;
+            const lastChecked = subResult[0].last_checked_date ? new Date(subResult[0].last_checked_date).getTime() : 0;
+
+            if (now < lastChecked) {
+                isExpired = true;
+            } else if (now <= nextBilling + gracePeriodMs) {
+                isExpired = false;
+                db.execute(`UPDATE subscription SET last_checked_date = $1 WHERE id = 1 AND (last_checked_date IS NULL OR last_checked_date < $1)`, [new Date().toISOString()]).catch(() => {});
+            }
+        }
+
+        if (isExpired) {
+           setIsPlanExpired(true);
+           setLoading(false);
+           return;
+        } else {
+           setIsPlanExpired(false);
+        }
+
         const sRes = await db.select<any[]>("SELECT * FROM bill_settings WHERE id = 1");
         if (sRes.length > 0) setBillSettings(sRes[0]);
         const pRes = await db.select<any[]>("SELECT * FROM printer_settings WHERE id = 1");
@@ -672,8 +698,19 @@ export default function Reports({ db }: ReportsProps) {
     }
   };
 
+  if (isPlanExpired) {
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: 'var(--bg-dark, #0f172a)', color: 'white', padding: '2rem', borderRadius: '8px' }}>
+            <h2 style={{ fontSize: '2.5rem', marginBottom: '1rem', color: '#ef4444', fontWeight: 'bold' }}>Plan Expired</h2>
+            <p style={{ color: '#94a3b8', marginBottom: '2rem', textAlign: 'center', maxWidth: '400px', fontSize: '1.1rem', lineHeight: '1.5' }}>
+                Your subscription plan has expired. Please visit <a href="https://magicbill.in" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: 'bold' }}>magicbill.in</a> to activate your plan or go to the Account page.
+            </p>
+        </div>
+    );
+  }
+
   return (
-    <div className="reports-page" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', height: '100%', overflowY: 'auto', background: 'var(--bg-light)' }}>
+    <div className="reports-page" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', height: '100%', overflowY: 'auto', background: 'var(--bg-light)', position: 'relative' }}>
       {toastMessage && (
         <div style={{
           position: 'fixed', top: '20px', right: '20px', backgroundColor: 'var(--primary)', color: 'var(--primary-fg)',

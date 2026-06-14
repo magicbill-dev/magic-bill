@@ -31,6 +31,9 @@ import ExpenseTracker from "./components/ExpenseTracker";
 import Dashboard from "./components/Dashboard";
 import Billing from "./components/Billing";
 import Reports from "./components/Reports";
+import Account from "./components/Account";
+import { firestore } from "./firebase";
+import { doc, getDoc } from "firebase/firestore";
 import "./App.css";
 
 function App() {
@@ -117,6 +120,23 @@ function App() {
         setDb(dbInstance);
 
         // Create Tables
+        await dbInstance.execute(`
+          CREATE TABLE IF NOT EXISTS subscription (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            status TEXT,
+            planId TEXT,
+            subscriptionId TEXT,
+            nextBillingDate TEXT,
+            updatedAt TEXT,
+            last_checked_date TEXT
+          );
+        `);
+
+        try { await dbInstance.execute(`ALTER TABLE subscription ADD COLUMN last_checked_date TEXT`); } catch(e) {}
+
+        // Initialize subscription if empty
+        await dbInstance.execute(`INSERT OR IGNORE INTO subscription (id) VALUES (1)`);
+
         await dbInstance.execute(`
           CREATE TABLE IF NOT EXISTS store_settings (
             id INTEGER PRIMARY KEY CHECK (id = 1), -- Ensure only one row exists
@@ -338,6 +358,47 @@ function App() {
     initDb();
   }, [dbFolderPath, updateStatus.status]);
 
+  // Global Firebase Synchronization
+  useEffect(() => {
+    if (!db || !navigator.onLine) return;
+
+    const licenseKey = localStorage.getItem('magicbill_license_key');
+    if (licenseKey) {
+      const syncSubscription = async () => {
+        try {
+          const userDocRef = doc(firestore, 'users', licenseKey);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            const sub = data.subscription || {};
+            
+            // Sync to SQLite
+            await db.execute(
+              `UPDATE subscription SET 
+                status = $1, 
+                planId = $2, 
+                subscriptionId = $3, 
+                nextBillingDate = $4, 
+                updatedAt = $5
+              WHERE id = 1`,
+              [
+                sub.status || '', 
+                sub.planId || '', 
+                sub.id || '', 
+                sub.nextBillingDate || '', 
+                sub.updatedAt || ''
+              ]
+            );
+          }
+        } catch (err) {
+          console.error("Global Sync: Error fetching subscription from Firebase:", err);
+        }
+      };
+      
+      syncSubscription();
+    }
+  }, [db]);
+
   const handleSelectDbFolder = async () => {
     try {
       const selected = await open({
@@ -507,6 +568,15 @@ function App() {
 
         <div className="user-profile compact-profile" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingBottom: '10px' }}>
           <button 
+            className={`nav-item ${activeTab === "Account" ? "active" : ""}`}
+            onClick={() => handleNavigate("Account")}
+            title="Account"
+            style={{ marginBottom: '4px' }}
+          >
+            <Users size={24} className="nav-icon" />
+            <span className="nav-label">Account</span>
+          </button>
+          <button 
             className={`nav-item ${isSettingsPanelOpen ? "active" : ""}`}
             onClick={() => setIsSettingsPanelOpen(!isSettingsPanelOpen)}
             title="Settings"
@@ -593,6 +663,10 @@ function App() {
               <Reports db={db} />
             )}
 
+            {activeTab === "Account" && (
+              <Account db={db} />
+            )}
+
             {![
               "Dashboard", 
               "Menu Management", 
@@ -602,7 +676,8 @@ function App() {
               "Bill Settings", 
               "Printer Settings", 
               "Billing", 
-              "Reports"
+              "Reports",
+              "Account"
             ].includes(activeTab) && (
                <div className="empty-state">
                   <p>{activeTab} feature coming soon...</p>

@@ -9,9 +9,9 @@ async fn get_printers() -> Vec<String> {
     tauri::async_runtime::spawn_blocking(|| {
         #[cfg(target_os = "windows")]
         {
-            use std::process::Command;
             use std::os::windows::process::CommandExt;
-            
+            use std::process::Command;
+
             let output = Command::new("powershell")
                 .args([
                     "-NoProfile",
@@ -47,7 +47,9 @@ async fn get_printers() -> Vec<String> {
         }
 
         vec![]
-    }).await.unwrap_or_else(|_| vec![])
+    })
+    .await
+    .unwrap_or_else(|_| vec![])
 }
 
 #[tauri::command]
@@ -63,7 +65,8 @@ async fn print_receipt_raw(printer_name: String, data: Vec<u8>) -> Result<String
                 StartPagePrinter, WritePrinter, DOC_INFO_1A,
             };
 
-            let p_name = CString::new(printer_name).map_err(|_| "Invalid printer name".to_string())?;
+            let p_name =
+                CString::new(printer_name).map_err(|_| "Invalid printer name".to_string())?;
             let mut h_printer = null_mut();
 
             unsafe {
@@ -142,7 +145,9 @@ async fn print_receipt_raw(printer_name: String, data: Vec<u8>) -> Result<String
                 Err("lp command failed".to_string())
             }
         }
-    }).await.unwrap_or_else(|e| Err(format!("Task panicked: {}", e)))
+    })
+    .await
+    .unwrap_or_else(|e| Err(format!("Task panicked: {}", e)))
 }
 
 #[tauri::command]
@@ -150,8 +155,8 @@ async fn print_receipt_text(printer_name: String, text: String) -> Result<String
     tauri::async_runtime::spawn_blocking(move || {
         #[cfg(target_os = "windows")]
         {
-            use std::process::Command;
             use std::os::windows::process::CommandExt;
+            use std::process::Command;
 
             let mut temp_file = std::env::temp_dir();
             temp_file.push("easy_bill_receipt.txt");
@@ -212,7 +217,9 @@ async fn print_receipt_text(printer_name: String, text: String) -> Result<String
                 Err("lp command failed".to_string())
             }
         }
-    }).await.unwrap_or_else(|e| Err(format!("Task panicked: {}", e)))
+    })
+    .await
+    .unwrap_or_else(|e| Err(format!("Task panicked: {}", e)))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

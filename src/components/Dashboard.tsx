@@ -16,18 +16,45 @@ interface DashboardProps {
 export default function Dashboard({ db }: DashboardProps) {
     const [loading, setLoading] = useState(true);
     const [timeRange, setTimeRange] = useState<"today" | "7d" | "30d" | "all">("30d");
+    const [isPlanExpired, setIsPlanExpired] = useState(false);
     
     // Raw Data
     const [orders, setOrders] = useState<any[]>([]);
     const [expenses, setExpenses] = useState<any[]>([]);
     const [categories, setCategories] = useState<Record<number, string>>({});
-    
+
     // Fetch data whenever timeRange changes
     useEffect(() => {
         async function fetchData() {
             if (!db) return;
             setLoading(true);
             try {
+                // Subscription Check
+                const subResult = await db.select<any[]>("SELECT * FROM subscription WHERE id = 1");
+                let isExpired = true;
+                if (subResult.length > 0 && subResult[0].nextBillingDate) {
+                    const nextBilling = new Date(subResult[0].nextBillingDate).getTime();
+                    const now = new Date().getTime();
+                    const gracePeriodMs = 10 * 24 * 60 * 60 * 1000;
+                    const lastChecked = subResult[0].last_checked_date ? new Date(subResult[0].last_checked_date).getTime() : 0;
+                    
+                    if (now < lastChecked) {
+                        // Tamper detected
+                        isExpired = true;
+                    } else if (now <= nextBilling + gracePeriodMs) {
+                        isExpired = false;
+                        db.execute(`UPDATE subscription SET last_checked_date = $1 WHERE id = 1 AND (last_checked_date IS NULL OR last_checked_date < $1)`, [new Date().toISOString()]).catch(() => {});
+                    }
+                }
+                
+                if (isExpired) {
+                   setIsPlanExpired(true);
+                   setLoading(false);
+                   return;
+                } else {
+                   setIsPlanExpired(false);
+                }
+
                 // Fetch categories to map IDs to names
                 const cats = await db.select<any[]>("SELECT * FROM categories");
                 const catMap: Record<number, string> = {};
@@ -164,8 +191,19 @@ export default function Dashboard({ db }: DashboardProps) {
 
     const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#ec4899', '#06b6d4', '#14b8a6'];
 
+    if (isPlanExpired) {
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: 'var(--bg-dark, #0f172a)', color: 'white', padding: '2rem', borderRadius: '8px' }}>
+                <h2 style={{ fontSize: '2.5rem', marginBottom: '1rem', color: '#ef4444', fontWeight: 'bold' }}>Plan Expired</h2>
+                <p style={{ color: '#94a3b8', marginBottom: '2rem', textAlign: 'center', maxWidth: '400px', fontSize: '1.1rem', lineHeight: '1.5' }}>
+                    Your subscription plan has expired. Please visit <a href="https://magicbill.in" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: 'bold' }}>magicbill.in</a> to activate your plan or go to the Account page.
+                </p>
+            </div>
+        );
+    }
+
     return (
-        <div className="dash-wrapper">
+        <div className="dash-wrapper" style={{ position: 'relative' }}>
             <style>{`
                 .dash-wrapper {
                     padding: 1.5rem;
@@ -262,7 +300,7 @@ export default function Dashboard({ db }: DashboardProps) {
                 }
                 .bottom-grid {
                     display: grid;
-                    grid-template-columns: 1fr 1fr 2fr;
+                    grid-template-columns: 1fr 2fr;
                     gap: 1.5rem;
                 }
                 .dash-panel {
@@ -337,7 +375,7 @@ export default function Dashboard({ db }: DashboardProps) {
                 
                 @media (max-width: 1200px) {
                     .chart-grid { grid-template-columns: 1fr; }
-                    .bottom-grid { grid-template-columns: 1fr 1fr; }
+                    .bottom-grid { grid-template-columns: 1fr; }
                 }
                 @media (max-width: 768px) {
                     .bottom-grid { grid-template-columns: 1fr; }
@@ -398,7 +436,7 @@ export default function Dashboard({ db }: DashboardProps) {
                 </div>
             </div>
 
-            {/* Middle Section: Trend Chart & Top Items */}
+            {/* Middle Section: Trend Chart & Category/Payment Analytics */}
             <div className="chart-grid">
                 <div className="dash-panel" style={{ minHeight: '350px' }}>
                     {loading && <div className="loader-overlay"><Activity className="text-blink" size={32} color="var(--primary)"/></div>}
@@ -431,6 +469,71 @@ export default function Dashboard({ db }: DashboardProps) {
                     </div>
                 </div>
 
+                {/* Merged Category & Payment Analytics */}
+                <div className="dash-panel" style={{ minHeight: '400px' }}>
+                    {loading && <div className="loader-overlay"><Activity className="text-blink" size={32} color="var(--primary)"/></div>}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        {/* Sales by Category */}
+                        <div style={{ flex: 1.5, minHeight: '240px', display: 'flex', flexDirection: 'column' }}>
+                            <div className="panel-title" style={{ marginBottom: '0.25rem' }}><Tag size={20} /> Sales by Category</div>
+                            <div style={{ flex: 1, width: '100%', position: 'relative' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={dashboardData.categoryData}
+                                            cx="50%" cy="45%"
+                                            innerRadius={45} outerRadius={70}
+                                            paddingAngle={3}
+                                            dataKey="value"
+                                            stroke="none"
+                                        >
+                                            {dashboardData.categoryData.map((_entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Pie>
+                                        <RechartsTooltip 
+                                            formatter={(value: any) => `₹${Number(value).toFixed(2)}`} 
+                                            contentStyle={{ backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-color)', borderRadius: '0.75rem' }} 
+                                        />
+                                        <Legend verticalAlign="bottom" align="center" iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        <div style={{ height: '1px', background: 'var(--border-color)', opacity: 0.5 }}></div>
+
+                        {/* Payment Modes */}
+                        <div style={{ flex: 1, minHeight: '120px', display: 'flex', flexDirection: 'column' }}>
+                            <div className="panel-title" style={{ marginBottom: '0.5rem' }}><CreditCard size={20} /> Payment Modes</div>
+                            <div style={{ flex: 1 }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={dashboardData.paymentData} layout="vertical" margin={{ top: 0, right: 30, left: 0, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--border-color)" />
+                                        <XAxis type="number" hide />
+                                        <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fontSize: 11, fill: 'var(--text-primary)'}} width={65} />
+                                        <RechartsTooltip 
+                                            formatter={(value: any) => `₹${Number(value).toFixed(2)}`}
+                                            cursor={{fill: 'rgba(128,128,128,0.1)'}}
+                                            contentStyle={{ backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-color)', borderRadius: '0.75rem' }}
+                                        />
+                                        <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={18}>
+                                            {dashboardData.paymentData.map((_entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[(index + 4) % COLORS.length]} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Bottom Section: Top Items & Recent Orders */}
+            <div className="bottom-grid">
+                
+                {/* Top Selling Items */}
                 <div className="dash-panel">
                     {loading && <div className="loader-overlay"><Activity className="text-blink" size={32} color="var(--primary)"/></div>}
                     <div className="panel-title"><UtensilsCrossed size={20} /> Top Selling Items</div>
@@ -450,64 +553,6 @@ export default function Dashboard({ db }: DashboardProps) {
                                 No sales data found.
                             </div>
                         )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Bottom Section: Pies & Table */}
-            <div className="bottom-grid">
-                
-                {/* Category Breakdown */}
-                <div className="dash-panel" style={{ minHeight: '300px' }}>
-                    {loading && <div className="loader-overlay"><Activity className="text-blink" size={32} color="var(--primary)"/></div>}
-                    <div className="panel-title"><Tag size={20} /> Sales by Category</div>
-                    <div style={{ flex: 1, width: '100%' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={dashboardData.categoryData}
-                                    cx="50%" cy="50%"
-                                    innerRadius={50} outerRadius={80}
-                                    paddingAngle={3}
-                                    dataKey="value"
-                                    stroke="none"
-                                >
-                                    {dashboardData.categoryData.map((_entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <RechartsTooltip 
-                                    formatter={(value: any) => `₹${Number(value).toFixed(2)}`} 
-                                    contentStyle={{ backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-color)', borderRadius: '0.75rem' }} 
-                                />
-                                <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-                {/* Payment Modes */}
-                <div className="dash-panel" style={{ minHeight: '300px' }}>
-                    {loading && <div className="loader-overlay"><Activity className="text-blink" size={32} color="var(--primary)"/></div>}
-                    <div className="panel-title"><CreditCard size={20} /> Payment Modes</div>
-                    <div style={{ flex: 1, width: '100%' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={dashboardData.paymentData} layout="vertical" margin={{ top: 0, right: 30, left: 20, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--border-color)" />
-                                <XAxis type="number" hide />
-                                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: 'var(--text-primary)'}} width={80} />
-                                <RechartsTooltip 
-                                    formatter={(value: any) => `₹${Number(value).toFixed(2)}`}
-                                    cursor={{fill: 'rgba(128,128,128,0.1)'}}
-                                    contentStyle={{ backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-color)', borderRadius: '0.75rem' }}
-                                />
-                                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24}>
-                                    {dashboardData.paymentData.map((_entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[(index + 4) % COLORS.length]} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
                     </div>
                 </div>
 

@@ -101,6 +101,9 @@ export default function Billing({ db }: BillingProps) {
   const [categoryPrinters, setCategoryPrinters] = useState<Record<number, string>>({});
   const [categories, setCategories] = useState<any[]>([]);
 
+  // Subscription State
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+
   const searchInputRef = useRef<HTMLInputElement>(null);
   const suggestionListRef = useRef<HTMLDivElement>(null);
   const qtyInputRef = useRef<HTMLInputElement>(null);
@@ -108,8 +111,10 @@ export default function Billing({ db }: BillingProps) {
 
   // Focus search input on mount
   useEffect(() => {
-    setTimeout(() => searchInputRef.current?.focus(), 0);
-  }, []);
+    if (subscriptionStatus === "active") {
+      setTimeout(() => searchInputRef.current?.focus(), 0);
+    }
+  }, [subscriptionStatus]);
 
   const fetchCreditCustomers = async () => {
     if (!db) return;
@@ -126,6 +131,28 @@ export default function Billing({ db }: BillingProps) {
     async function fetchInitialData() {
       if (!db) return;
       try {
+        const subResult = await db.select<any[]>("SELECT * FROM subscription WHERE id = 1");
+        let isExpired = true;
+        if (subResult.length > 0 && subResult[0].nextBillingDate) {
+            const nextBilling = new Date(subResult[0].nextBillingDate).getTime();
+            const now = new Date().getTime();
+            const gracePeriodMs = 10 * 24 * 60 * 60 * 1000;
+            const lastChecked = subResult[0].last_checked_date ? new Date(subResult[0].last_checked_date).getTime() : 0;
+
+            if (now < lastChecked) {
+                isExpired = true;
+            } else if (now <= nextBilling + gracePeriodMs) {
+                isExpired = false;
+                db.execute(`UPDATE subscription SET last_checked_date = $1 WHERE id = 1 AND (last_checked_date IS NULL OR last_checked_date < $1)`, [new Date().toISOString()]).catch(() => {});
+            }
+        }
+        
+        if (!isExpired) {
+           setSubscriptionStatus("active");
+        } else {
+           setSubscriptionStatus("inactive");
+        }
+
         const result = await db.select<Item[]>("SELECT * FROM items ORDER BY name");
         setAllItems(result);
 
