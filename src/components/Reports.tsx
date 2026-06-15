@@ -70,6 +70,7 @@ export default function Reports({ db }: ReportsProps) {
   const [categories, setCategories] = useState<Record<number, string>>({});
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isPlanExpired, setIsPlanExpired] = useState(false);
+  const [isCheckingPlan, setIsCheckingPlan] = useState(true);
   
   const [itemSalesFilter, setItemSalesFilter] = useState({
     item: "All Items",
@@ -105,6 +106,7 @@ export default function Reports({ db }: ReportsProps) {
   useEffect(() => {
     async function fetchSettings() {
       if (!db) return;
+      setIsCheckingPlan(true);
       try {
         const subResult = await db.select<any[]>("SELECT * FROM subscription WHERE id = 1");
         let isExpired = true;
@@ -122,12 +124,12 @@ export default function Reports({ db }: ReportsProps) {
             }
         }
 
+        setIsPlanExpired(isExpired);
+        setIsCheckingPlan(false);
+
         if (isExpired) {
-           setIsPlanExpired(true);
            setLoading(false);
            return;
-        } else {
-           setIsPlanExpired(false);
         }
 
         const sRes = await db.select<any[]>("SELECT * FROM bill_settings WHERE id = 1");
@@ -138,6 +140,8 @@ export default function Reports({ db }: ReportsProps) {
         if (stRes.length > 0) setStoreSettings(stRes[0]);
       } catch (err) {
         console.error("Failed to load settings:", err);
+      } finally {
+        setIsCheckingPlan(false);
       }
     }
     fetchSettings();
@@ -697,6 +701,14 @@ export default function Reports({ db }: ReportsProps) {
         setToastMessage(`Print failed.`);
     }
   };
+
+  if (isCheckingPlan) {
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: 'var(--bg-light)' }}>
+            <div className="spinner" style={{ width: '32px', height: '32px', border: '3px solid var(--border-color)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        </div>
+    );
+  }
 
   if (isPlanExpired) {
     return (

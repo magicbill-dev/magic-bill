@@ -15,6 +15,7 @@ interface DashboardProps {
 
 export default function Dashboard({ db }: DashboardProps) {
     const [loading, setLoading] = useState(true);
+    const [isCheckingPlan, setIsCheckingPlan] = useState(true);
     const [timeRange, setTimeRange] = useState<"today" | "7d" | "30d" | "all">("30d");
     const [isPlanExpired, setIsPlanExpired] = useState(false);
     
@@ -28,6 +29,7 @@ export default function Dashboard({ db }: DashboardProps) {
         async function fetchData() {
             if (!db) return;
             setLoading(true);
+            setIsCheckingPlan(true);
             try {
                 // Subscription Check
                 const subResult = await db.select<any[]>("SELECT * FROM subscription WHERE id = 1");
@@ -47,12 +49,12 @@ export default function Dashboard({ db }: DashboardProps) {
                     }
                 }
                 
+                setIsPlanExpired(isExpired);
+                setIsCheckingPlan(false);
+                
                 if (isExpired) {
-                   setIsPlanExpired(true);
                    setLoading(false);
                    return;
-                } else {
-                   setIsPlanExpired(false);
                 }
 
                 // Fetch categories to map IDs to names
@@ -190,6 +192,14 @@ export default function Dashboard({ db }: DashboardProps) {
     }, [orders, expenses, categories]);
 
     const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#ec4899', '#06b6d4', '#14b8a6'];
+
+    if (isCheckingPlan) {
+        return (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: 'var(--bg-light)' }}>
+                <Activity className="text-blink" size={32} color="var(--primary)" />
+            </div>
+        );
+    }
 
     if (isPlanExpired) {
         return (
