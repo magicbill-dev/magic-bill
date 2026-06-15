@@ -194,11 +194,58 @@ export default function Account({ db }: AccountProps) {
             100% { opacity: 1; transform: scale(1) translateY(0); }
           }
           @keyframes spin { 100% { transform: rotate(360deg); } }
+          @keyframes borderRotate {
+            100% { transform: rotate(360deg); }
+          }
+          @keyframes pulse {
+             0% { transform: scale(1); opacity: 1; }
+             50% { transform: scale(1.5); opacity: 0.5; }
+             100% { transform: scale(1); opacity: 1; }
+          }
           .spin { animation: spin 1s linear infinite; }
           .glass-btn { transition: all 0.2s; }
           .glass-btn:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(255,255,255,0.2) !important; }
           .glass-btn:active { transform: scale(0.98); }
           .glass-input:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.2); }
+          
+          .plan-card-wrapper {
+            position: relative;
+            border-radius: 1.25rem;
+            padding: 2px;
+            box-shadow: 0 0 30px -10px var(--glow-color);
+            margin-top: 0.5rem;
+            transition: all 0.3s ease;
+          }
+          .plan-card-clip {
+             position: absolute;
+             inset: 0;
+             border-radius: 1.25rem;
+             overflow: hidden;
+             z-index: 0;
+          }
+          .plan-card-clip::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: conic-gradient(transparent 60%, var(--glow-color) 95%, #ffffff 100%);
+            animation: borderRotate 3s linear infinite;
+          }
+          .plan-card-content {
+            position: relative;
+            background: #0f1015;
+            border-radius: calc(1.25rem - 2px);
+            z-index: 1;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+          }
+          .plan-btn:hover {
+            filter: brightness(1.1);
+          }
         `}</style>
 
         {/* Left Pane (or Top Pane if not logged in) */}
@@ -339,66 +386,99 @@ export default function Account({ db }: AccountProps) {
                  </div>
 
                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                       <h3 style={{ margin: 0, fontSize: '0.95rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          <Activity size={18} /> Plan Status
-                       </h3>
-                       {planInfo.status === 'active' && (
-                          <span style={{ fontSize: '0.75rem', padding: '0.3rem 0.75rem', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', borderRadius: '1rem', fontWeight: 700, letterSpacing: '0.05em', border: '1px solid rgba(16, 185, 129, 0.3)' }}>ACTIVE</span>
-                       )}
-                       {planInfo.status === 'grace' && (
-                          <span style={{ fontSize: '0.75rem', padding: '0.3rem 0.75rem', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', borderRadius: '1rem', fontWeight: 700, letterSpacing: '0.05em', border: '1px solid rgba(245, 158, 11, 0.3)' }}>GRACE PERIOD</span>
-                       )}
-                       {planInfo.status === 'expired' && (
-                          <span style={{ fontSize: '0.75rem', padding: '0.3rem 0.75rem', background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', borderRadius: '1rem', fontWeight: 700, letterSpacing: '0.05em', border: '1px solid rgba(239, 68, 68, 0.3)' }}>EXPIRED</span>
-                       )}
-                       {planInfo.status === 'tampered' && (
-                          <span style={{ fontSize: '0.75rem', padding: '0.3rem 0.75rem', background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', borderRadius: '1rem', fontWeight: 700, letterSpacing: '0.05em', border: '1px solid rgba(239, 68, 68, 0.3)' }}>LOCKED</span>
-                       )}
-                    </div>
+                    {subDetails && (() => {
+                       const isGrace = planInfo.status === 'grace';
+                       const isActive = planInfo.status === 'active';
+                       const isExpired = planInfo.status === 'expired';
+                       const isTampered = planInfo.status === 'tampered';
 
-                    {subDetails && (
-                       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                               <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Current Plan</span>
-                               <span style={{ fontSize: '1rem', fontWeight: 500, color: '#f8fafc', textTransform: 'capitalize' }}>{subDetails.planId || 'Free'}</span>
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                               <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Next Billing</span>
-                               <span style={{ fontSize: '1rem', fontWeight: 500, color: '#f8fafc' }}>{subDetails.nextBillingDate ? new Date(subDetails.nextBillingDate).toLocaleDateString() : 'N/A'}</span>
-                            </div>
-                         </div>
-                         {planInfo.status === 'tampered' ? (
-                            <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '1rem', padding: '1.25rem', textAlign: 'center' }}>
-                               <p style={{ color: '#fca5a5', margin: '0 0 1rem 0', fontWeight: 500 }}>System time tampering detected. Your clock is set before your last active session. Please correct your system time and click Sync Latest Data.</p>
-                            </div>
-                         ) : planInfo.status === 'expired' ? (
-                            <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '1rem', padding: '1.25rem', textAlign: 'center' }}>
-                               <p style={{ color: '#fca5a5', margin: '0 0 1rem 0', fontWeight: 500 }}>Your plan has expired. Please renew to continue using all features.</p>
-                               <a href="https://magicbill.in" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', background: '#ef4444', color: '#fff', textDecoration: 'none', padding: '0.75rem 1.5rem', borderRadius: '0.5rem', fontWeight: 600, transition: 'background 0.2s' }}>
-                                  Activate Plan
-                               </a>
-                            </div>
-                         ) : planInfo.status === 'grace' ? (
-                            <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '1rem', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'center' }}>
-                               <p style={{ color: '#fbbf24', margin: '0', fontWeight: 600 }}>Your plan has reached its billing date. You are currently in the grace period.</p>
-                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
-                                  <span style={{ color: '#fcd34d', fontWeight: 500 }}>Grace Days Left:</span>
-                                  <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f59e0b' }}>{planInfo.remainingDays}</span>
-                               </div>
-                               <a href="https://magicbill.in" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', background: 'transparent', border: '1px solid #f59e0b', color: '#f59e0b', textDecoration: 'none', padding: '0.5rem 1rem', borderRadius: '0.5rem', fontWeight: 600, marginTop: '0.5rem' }}>
-                                  Renew Now
-                               </a>
-                            </div>
-                         ) : (
-                            <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '1rem', padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                               <span style={{ color: '#34d399', fontWeight: 500 }}>Remaining Days:</span>
-                               <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#10b981' }}>{planInfo.remainingDays}</span>
-                            </div>
-                         )}
-                       </div>
-                    )}
+                       let glowColor = '#3b82f6';
+                       if (isActive) glowColor = '#10b981';
+                       if (isGrace) glowColor = '#f59e0b';
+                       if (isExpired || isTampered) glowColor = '#ef4444';
+
+                       return (
+                          <div className="plan-card-wrapper" style={{ '--glow-color': glowColor } as any}>
+                             <div className="plan-card-clip"></div>
+                             <div className="plan-card-content">
+                                
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem' }}>
+                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                      <span style={{ fontSize: '0.85rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                         <Activity size={16} /> Plan Status
+                                      </span>
+                                      <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff', textTransform: 'capitalize' }}>
+                                         {subDetails.planId || 'Free'} Plan
+                                      </span>
+                                   </div>
+                                   
+                                   {isActive && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(16, 185, 129, 0.1)', padding: '0.5rem 1rem', borderRadius: '2rem', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 10px #10b981' }}></div>
+                                         <span style={{ fontSize: '0.85rem', color: '#34d399', fontWeight: 700, letterSpacing: '0.05em' }}>ACTIVE</span>
+                                      </div>
+                                   )}
+                                   {isGrace && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(245, 158, 11, 0.1)', padding: '0.5rem 1rem', borderRadius: '2rem', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b', boxShadow: '0 0 10px #f59e0b', animation: 'pulse 2s infinite' }}></div>
+                                         <span style={{ fontSize: '0.85rem', color: '#fbbf24', fontWeight: 700, letterSpacing: '0.05em' }}>GRACE PERIOD</span>
+                                      </div>
+                                   )}
+                                   {isExpired && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.5rem 1rem', borderRadius: '2rem', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 10px #ef4444' }}></div>
+                                         <span style={{ fontSize: '0.85rem', color: '#f87171', fontWeight: 700, letterSpacing: '0.05em' }}>EXPIRED</span>
+                                      </div>
+                                   )}
+                                   {isTampered && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.5rem 1rem', borderRadius: '2rem', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 10px #ef4444' }}></div>
+                                         <span style={{ fontSize: '0.85rem', color: '#f87171', fontWeight: 700, letterSpacing: '0.05em' }}>LOCKED</span>
+                                      </div>
+                                   )}
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0.5rem 0' }}>
+                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                      <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>Next Billing Date</span>
+                                      <span style={{ fontSize: '1.1rem', fontWeight: 600, color: '#e2e8f0' }}>
+                                         {subDetails.nextBillingDate ? new Date(subDetails.nextBillingDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}
+                                      </span>
+                                   </div>
+                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', alignItems: 'flex-end' }}>
+                                      <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>{isGrace ? 'Grace Days Left' : 'Remaining Days'}</span>
+                                      <span style={{ fontSize: '1.75rem', fontWeight: 800, color: glowColor, lineHeight: 1, textShadow: `0 0 20px ${glowColor}40` }}>
+                                         {planInfo.remainingDays}
+                                      </span>
+                                   </div>
+                                </div>
+
+                                {isTampered && (
+                                   <div style={{ background: 'rgba(239, 68, 68, 0.1)', borderRadius: '0.75rem', padding: '1rem', textAlign: 'center', border: '1px dashed rgba(239, 68, 68, 0.3)' }}>
+                                      <p style={{ color: '#fca5a5', margin: 0, fontSize: '0.9rem', lineHeight: '1.4' }}>System time tampering detected. Your clock is set before your last active session. Please correct your system time and click Sync Latest Data.</p>
+                                   </div>
+                                )}
+                                {isExpired && (
+                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                      <p style={{ color: '#fca5a5', margin: 0, fontSize: '0.9rem', textAlign: 'center', background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '0.5rem' }}>Your plan has expired. Please renew to continue using all features.</p>
+                                      <a href="https://magicbill.in" target="_blank" rel="noopener noreferrer" className="plan-btn" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', background: glowColor, color: '#fff', textDecoration: 'none', padding: '0.875rem', borderRadius: '0.5rem', fontWeight: 600, fontSize: '1rem', transition: 'all 0.2s', boxShadow: `0 4px 14px 0 ${glowColor}60` }}>
+                                         Renew Plan
+                                      </a>
+                                   </div>
+                                )}
+                                {isGrace && (
+                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                      <p style={{ color: '#fcd34d', margin: 0, fontSize: '0.9rem', textAlign: 'center', background: 'rgba(245, 158, 11, 0.1)', padding: '0.75rem', borderRadius: '0.5rem' }}>Your billing date has passed. Please renew your plan before the grace period ends.</p>
+                                      <a href="https://magicbill.in" target="_blank" rel="noopener noreferrer" className="plan-btn" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'transparent', border: `1px solid ${glowColor}`, color: glowColor, textDecoration: 'none', padding: '0.875rem', borderRadius: '0.5rem', fontWeight: 600, fontSize: '1rem', transition: 'all 0.2s' }}>
+                                         Renew Now
+                                      </a>
+                                   </div>
+                                )}
+
+                             </div>
+                          </div>
+                       );
+                    })()}
                  </div>
 
               </div>

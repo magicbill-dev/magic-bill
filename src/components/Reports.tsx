@@ -701,10 +701,69 @@ export default function Reports({ db }: ReportsProps) {
   if (isPlanExpired) {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: 'var(--bg-dark, #0f172a)', color: 'white', padding: '2rem', borderRadius: '8px' }}>
-            <h2 style={{ fontSize: '2.5rem', marginBottom: '1rem', color: '#ef4444', fontWeight: 'bold' }}>Plan Expired</h2>
-            <p style={{ color: '#94a3b8', marginBottom: '2rem', textAlign: 'center', maxWidth: '400px', fontSize: '1.1rem', lineHeight: '1.5' }}>
-                Your subscription plan has expired. Please visit <a href="https://magicbill.in" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: 'bold' }}>magicbill.in</a> to activate your plan or go to the Account page.
-            </p>
+            <style>{`
+              @keyframes pulseRed {
+                 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+                 70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
+                 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+              }
+              .upgrade-btn {
+                 display: inline-flex;
+                 align-items: center;
+                 justify-content: center;
+                 background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+                 color: white;
+                 font-weight: 600;
+                 font-size: 1.1rem;
+                 padding: 0.875rem 2rem;
+                 border-radius: 0.75rem;
+                 text-decoration: none;
+                 transition: all 0.2s ease;
+                 box-shadow: 0 4px 15px -3px rgba(239, 68, 68, 0.5);
+                 border: 1px solid rgba(255,255,255,0.1);
+                 animation: pulseRed 2s infinite;
+              }
+              .upgrade-btn:hover {
+                 transform: translateY(-2px);
+                 box-shadow: 0 8px 25px -5px rgba(239, 68, 68, 0.6);
+                 filter: brightness(1.1);
+              }
+            `}</style>
+            <div style={{ 
+                background: 'rgba(255,255,255,0.02)', 
+                border: '1px solid rgba(255,255,255,0.05)', 
+                padding: '3rem', 
+                borderRadius: '1.5rem', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center',
+                maxWidth: '500px',
+                textAlign: 'center',
+                boxShadow: '0 20px 40px -10px rgba(0,0,0,0.5)'
+            }}>
+                <div style={{ 
+                    width: '80px', height: '80px', 
+                    borderRadius: '50%', 
+                    background: 'rgba(239, 68, 68, 0.1)', 
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    marginBottom: '1.5rem',
+                    border: '1px solid rgba(239, 68, 68, 0.2)'
+                }}>
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                </div>
+                <h2 style={{ fontSize: '2rem', margin: '0 0 1rem 0', color: '#f8fafc', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                    You don't have an active plan
+                </h2>
+                <p style={{ color: '#94a3b8', margin: '0 0 2.5rem 0', fontSize: '1rem', lineHeight: '1.6' }}>
+                    Your subscription has expired or hasn't been activated. Upgrade your plan to restore access to the Dashboard, Reports, and all premium features.
+                </p>
+                <a href="https://magicbill.in" target="_blank" rel="noopener noreferrer" className="upgrade-btn">
+                    Activate Plan Now
+                </a>
+            </div>
         </div>
     );
   }
