@@ -252,6 +252,14 @@ function App() {
         await addColumn('printer_settings', 'bill_print_confirmation', 'BOOLEAN', "0");
         await addColumn('printer_settings', 'disable_kot', 'BOOLEAN', "0");
 
+        // UPI and QR Settings
+        await addColumn('store_settings', 'upi_id', 'TEXT', "''");
+        await addColumn('store_settings', 'merchant_name', 'TEXT', "''");
+        await addColumn('store_settings', 'payment_reference', 'TEXT', "''");
+        await addColumn('bill_settings', 'dynamic_upi_qr', 'BOOLEAN', "0");
+        await addColumn('bill_settings', 'static_upi_qr', 'BOOLEAN', "0");
+        await addColumn('bill_settings', 'no_qr_print', 'BOOLEAN', "1");
+
         await dbInstance.execute(`
           CREATE TABLE IF NOT EXISTS kot_settings (
             id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -566,7 +574,7 @@ function App() {
           ))}
         </nav>
 
-        <div className="user-profile compact-profile" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingBottom: '10px' }}>
+        <div className="user-profile compact-profile" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingBottom: '0' }}>
           <button 
             className={`nav-item ${activeTab === "Account" ? "active" : ""}`}
             onClick={() => handleNavigate("Account")}
@@ -580,22 +588,26 @@ function App() {
             className={`nav-item ${isSettingsPanelOpen ? "active" : ""}`}
             onClick={() => setIsSettingsPanelOpen(!isSettingsPanelOpen)}
             title="Settings"
-            style={{ marginBottom: '4px' }}
+            style={{ marginBottom: '8px' }}
           >
             <Settings size={24} className="nav-icon" />
             <span className="nav-label">Settings</span>
           </button>
-          {appVersion && <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'bold', marginBottom: '4px' }}>v{appVersion}</span>}
+          
+          <div style={{ width: '40%', height: '1px', backgroundColor: 'var(--border-color, rgba(255,255,255,0.1))', margin: '4px 0 8px 0' }} />
+
+          {appVersion && <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 'bold', marginBottom: '2px' }}>v{appVersion}</span>}
           <button 
             onClick={checkForUpdates}
             style={{ 
               background: 'none', 
               border: 'none', 
               color: 'var(--primary)', 
-              fontSize: '0.7rem', 
+              fontSize: '0.65rem', 
               cursor: 'pointer', 
               textDecoration: 'underline',
-              padding: '4px'
+              padding: '2px',
+              marginBottom: '4px'
             }}
             title="Check for updates"
           >

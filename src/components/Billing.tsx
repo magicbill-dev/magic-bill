@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, KeyboardEvent } from "react";
 import Database from "@tauri-apps/plugin-sql";
 import { invoke } from "@tauri-apps/api/core";
+import QRCode from "qrcode";
 import { 
   Search, 
   Plus, 
@@ -171,21 +172,24 @@ export default function Billing({ db }: BillingProps) {
           const row = settingsRes[0];
           setBillSettings({
             ...row,
-            show_gst: row.show_gst !== 0 && row.show_gst !== false,
-            show_fssai: row.show_fssai !== 0 && row.show_fssai !== false,
-            show_address: row.show_address !== 0 && row.show_address !== false,
-            show_phone: row.show_phone !== 0 && row.show_phone !== false,
-            show_cashier_name: row.show_cashier_name !== 0 && row.show_cashier_name !== false,
-            gst_enabled: row.gst_enabled !== 0 && row.gst_enabled !== false,
-            show_line_separators: row.show_line_separators !== 0 && row.show_line_separators !== false,
-            show_token: row.show_token !== 0 && row.show_token !== false,
-            sep_header: row.sep_header !== 0 && row.sep_header !== false,
-            sep_meta: row.sep_meta !== 0 && row.sep_meta !== false,
-            sep_token: row.sep_token !== 0 && row.sep_token !== false,
-            sep_table_header: row.sep_table_header !== 0 && row.sep_table_header !== false,
-            sep_table_body: row.sep_table_body !== 0 && row.sep_table_body !== false,
-            sep_subtotals: row.sep_subtotals !== 0 && row.sep_subtotals !== false,
-            sep_grand_total: row.sep_grand_total !== 0 && row.sep_grand_total !== false
+            show_gst: row.show_gst !== 0 && row.show_gst !== false && row.show_gst !== "0",
+            show_fssai: row.show_fssai !== 0 && row.show_fssai !== false && row.show_fssai !== "0",
+            show_address: row.show_address !== 0 && row.show_address !== false && row.show_address !== "0",
+            show_phone: row.show_phone !== 0 && row.show_phone !== false && row.show_phone !== "0",
+            show_cashier_name: row.show_cashier_name !== 0 && row.show_cashier_name !== false && row.show_cashier_name !== "0",
+            gst_enabled: row.gst_enabled !== 0 && row.gst_enabled !== false && row.gst_enabled !== "0",
+            show_line_separators: row.show_line_separators !== 0 && row.show_line_separators !== false && row.show_line_separators !== "0",
+            show_token: row.show_token !== 0 && row.show_token !== false && row.show_token !== "0",
+            sep_header: row.sep_header !== 0 && row.sep_header !== false && row.sep_header !== "0",
+            sep_meta: row.sep_meta !== 0 && row.sep_meta !== false && row.sep_meta !== "0",
+            sep_token: row.sep_token !== 0 && row.sep_token !== false && row.sep_token !== "0",
+            sep_table_header: row.sep_table_header !== 0 && row.sep_table_header !== false && row.sep_table_header !== "0",
+            sep_table_body: row.sep_table_body !== 0 && row.sep_table_body !== false && row.sep_table_body !== "0",
+            sep_subtotals: row.sep_subtotals !== 0 && row.sep_subtotals !== false && row.sep_subtotals !== "0",
+            sep_grand_total: row.sep_grand_total !== 0 && row.sep_grand_total !== false && row.sep_grand_total !== "0",
+            dynamic_upi_qr: row.dynamic_upi_qr !== 0 && row.dynamic_upi_qr !== false && row.dynamic_upi_qr !== "0",
+            static_upi_qr: row.static_upi_qr !== 0 && row.static_upi_qr !== false && row.static_upi_qr !== "0",
+            no_qr_print: row.no_qr_print !== 0 && row.no_qr_print !== false && row.no_qr_print !== "0",
           });
         }
 
@@ -1273,13 +1277,55 @@ export default function Billing({ db }: BillingProps) {
           // Center align
           text += "\x1B\x61\x01";
           const footerMsg = billSettings?.footer_message || "Thank you! Visit again.";
-          text += `${footerMsg}\n\n\n\n`;
+          text += `${footerMsg}\n\n`; // Reduced newlines here to leave space for QR
           
           // Reset alignment
           text += "\x1B\x61\x00";
 
           try {
-              const rawData = buildPrintData(text, Boolean(printerSettings?.print_bold), imageBytes, billSettings?.logo_position || 'none');
+              let rawData = buildPrintData(text, Boolean(printerSettings?.print_bold), imageBytes, billSettings?.logo_position || 'none');
+
+              // --- UPI QR CODE SECTION ---
+              if (storeSettings?.upi_id && billSettings?.no_qr_print === false) {
+                  let upiString = `upi://pay?pa=${storeSettings.upi_id}&pn=${encodeURIComponent(storeSettings.merchant_name || storeSettings.hotel_name || 'Restaurant')}&cu=INR`;
+                  
+                  if (storeSettings.payment_reference) {
+                      upiString += `&tr=${encodeURIComponent(storeSettings.payment_reference)}`;
+                  }
+                  
+                  if (billSettings?.dynamic_upi_qr) {
+                      upiString += `&am=${total.toFixed(2)}`;
+                  }
+
+                  try {
+                      // Generate QR Base64
+                      const qrBase64 = await QRCode.toDataURL(upiString, { margin: 1, width: 250 });
+                      
+                      // Convert to ESC/POS Bytes
+                      const qrBytes = await generateESCPOSImage(qrBase64, 40, printerSettings?.paper_size || "3inch");
+                      
+                      if (qrBytes.length > 0) {
+                          // The cut command in buildPrintData is 4 bytes at the end: 0x1D, 0x56, 0x41, 0x10
+                          const cutBytes = rawData.splice(-4, 4);
+                          
+                          // Center align text
+                          rawData.push(0x1B, 0x61, 0x01); 
+                          rawData.push(...Array.from(new TextEncoder().encode("Scan to Pay via UPI\n")));
+                          
+                          // Append QR
+                          rawData = rawData.concat(qrBytes);
+                          
+                          // Add padding space
+                          rawData.push(0x0A, 0x0A, 0x0A, 0x0A);
+                          
+                          // Append cut bytes back
+                          rawData = rawData.concat(cutBytes);
+                      }
+                  } catch (qrErr) {
+                      console.error("Failed to generate QR code:", qrErr);
+                  }
+              }
+
               await invokeWithTimeout("print_receipt_raw", { printerName, data: rawData });
               setToastMessage(`Checkout successful! Bill printed.`);
           } catch (e) {

@@ -9,6 +9,9 @@ interface StoreSettings {
   phone_number: string;
   gst_number: string;
   fssai_number: string;
+  upi_id?: string;
+  merchant_name?: string;
+  payment_reference?: string;
 }
 
 interface GeneralSettingsProps {
@@ -62,7 +65,10 @@ export default function GeneralSettings({ db, activeTab, setUnsavedChanges, setT
           address: result[0].address || "",
           phone_number: result[0].phone_number || "",
           gst_number: result[0].gst_number || "",
-          fssai_number: result[0].fssai_number || ""
+          fssai_number: result[0].fssai_number || "",
+          upi_id: result[0].upi_id || "",
+          merchant_name: result[0].merchant_name || "",
+          payment_reference: result[0].payment_reference || ""
         };
         setSettings(fetched);
         setInitialSettings(fetched);
@@ -86,13 +92,13 @@ export default function GeneralSettings({ db, activeTab, setUnsavedChanges, setT
       
       if (existing.length > 0) {
         await db.execute(
-          "UPDATE store_settings SET hotel_name = $1, address = $2, phone_number = $3, gst_number = $4, fssai_number = $5 WHERE id = 1",
-          [settings.hotel_name, settings.address, settings.phone_number, settings.gst_number, settings.fssai_number]
+          "UPDATE store_settings SET hotel_name = $1, address = $2, phone_number = $3, gst_number = $4, fssai_number = $5, upi_id = $6, merchant_name = $7, payment_reference = $8 WHERE id = 1",
+          [settings.hotel_name, settings.address, settings.phone_number, settings.gst_number, settings.fssai_number, settings.upi_id, settings.merchant_name, settings.payment_reference]
         );
       } else {
         await db.execute(
-          "INSERT INTO store_settings (id, hotel_name, address, phone_number, gst_number, fssai_number) VALUES (1, $1, $2, $3, $4, $5)",
-          [settings.hotel_name, settings.address, settings.phone_number, settings.gst_number, settings.fssai_number]
+          "INSERT INTO store_settings (id, hotel_name, address, phone_number, gst_number, fssai_number, upi_id, merchant_name, payment_reference) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8)",
+          [settings.hotel_name, settings.address, settings.phone_number, settings.gst_number, settings.fssai_number, settings.upi_id, settings.merchant_name, settings.payment_reference]
         );
       }
       
@@ -246,6 +252,46 @@ export default function GeneralSettings({ db, activeTab, setUnsavedChanges, setT
                 placeholder="FSSAI License Number"
                 className="modern-input"
               />
+            </div>
+
+            <div style={{ marginTop: '1rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+              <div className="modern-panel-header" style={{ marginBottom: '1rem', paddingBottom: '0', borderBottom: 'none' }}>
+                <Store size={18} style={{ color: 'var(--primary)' }} />
+                UPI Payment Settings
+              </div>
+              <div className="modern-form-group" style={{ marginBottom: '1rem' }}>
+                <label className="modern-label">UPI ID</label>
+                <input
+                  type="text"
+                  name="upi_id"
+                  value={settings.upi_id || ""}
+                  onChange={handleChange}
+                  placeholder="e.g. merchant@upi"
+                  className="modern-input"
+                />
+              </div>
+              <div className="modern-form-group" style={{ marginBottom: '1rem' }}>
+                <label className="modern-label">Merchant / Restaurant Name</label>
+                <input
+                  type="text"
+                  name="merchant_name"
+                  value={settings.merchant_name || ""}
+                  onChange={handleChange}
+                  placeholder="Name displayed to customer during payment"
+                  className="modern-input"
+                />
+              </div>
+              <div className="modern-form-group">
+                <label className="modern-label">Default Payment Reference (Optional)</label>
+                <input
+                  type="text"
+                  name="payment_reference"
+                  value={settings.payment_reference || ""}
+                  onChange={handleChange}
+                  placeholder="e.g. Bill Payment"
+                  className="modern-input"
+                />
+              </div>
             </div>
 
             <div style={{ marginTop: 'auto', paddingTop: '1.5rem' }}>

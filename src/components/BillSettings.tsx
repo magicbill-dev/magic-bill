@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Database from "@tauri-apps/plugin-sql";
-import { Save, Eye, Type, Settings2, UtensilsCrossed, Scissors } from "lucide-react";
+import { Save, Eye, Type, Settings2, UtensilsCrossed, Scissors, QrCode } from "lucide-react";
 
 interface StoreSettings {
   hotel_name: string;
@@ -45,6 +45,9 @@ interface BillConfig {
   address_size: string;
   table_font_size: string;
   total_font_size: string;
+  dynamic_upi_qr: boolean;
+  static_upi_qr: boolean;
+  no_qr_print: boolean;
 }
 
 interface KotConfig {
@@ -124,7 +127,10 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
     store_name_size: "16px",
     address_size: "12px",
     table_font_size: "12px",
-    total_font_size: "12px"
+    total_font_size: "12px",
+    dynamic_upi_qr: false,
+    static_upi_qr: false,
+    no_qr_print: true
   });
 
   const [kotConfig, setKotConfig] = useState<KotConfig>({
@@ -231,7 +237,10 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
           store_name_size: row.store_name_size || "16px",
           address_size: row.address_size || "12px",
           table_font_size: row.table_font_size || "12px",
-          total_font_size: row.total_font_size || "12px"
+          total_font_size: row.total_font_size || "12px",
+          dynamic_upi_qr: row.dynamic_upi_qr !== 0 && row.dynamic_upi_qr !== false,
+          static_upi_qr: row.static_upi_qr !== 0 && row.static_upi_qr !== false,
+          no_qr_print: row.no_qr_print !== 0 && row.no_qr_print !== false,
         };
         setBillConfig(b);
         setInitialBillConfig(b);
@@ -286,7 +295,8 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
             logo_position = $18, logo_size = $19, logo_opacity = $20, logo_base64 = $21,
             show_line_separators = $22, show_token = $23, sep_header = $24, sep_meta = $25,
             sep_token = $26, sep_table_header = $27, sep_table_body = $28, sep_subtotals = $29,
-            sep_grand_total = $30, store_name_size = $31, address_size = $32, table_font_size = $33, total_font_size = $34
+            sep_grand_total = $30, store_name_size = $31, address_size = $32, table_font_size = $33, total_font_size = $34,
+            dynamic_upi_qr = $35, static_upi_qr = $36, no_qr_print = $37
           WHERE id = 1`,
           [
             billConfig.footer_message, billConfig.show_gst ? 1 : 0, billConfig.show_fssai ? 1 : 0, billConfig.show_address ? 1 : 0, billConfig.show_phone ? 1 : 0,
@@ -296,7 +306,8 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
             billConfig.logo_position, billConfig.logo_size, billConfig.logo_opacity, billConfig.logo_base64,
             billConfig.show_line_separators ? 1 : 0, billConfig.show_token ? 1 : 0, billConfig.sep_header ? 1 : 0, billConfig.sep_meta ? 1 : 0,
             billConfig.sep_token ? 1 : 0, billConfig.sep_table_header ? 1 : 0, billConfig.sep_table_body ? 1 : 0, billConfig.sep_subtotals ? 1 : 0,
-            billConfig.sep_grand_total ? 1 : 0, billConfig.store_name_size, billConfig.address_size, billConfig.table_font_size, billConfig.total_font_size
+            billConfig.sep_grand_total ? 1 : 0, billConfig.store_name_size, billConfig.address_size, billConfig.table_font_size, billConfig.total_font_size,
+            billConfig.dynamic_upi_qr ? 1 : 0, billConfig.static_upi_qr ? 1 : 0, billConfig.no_qr_print ? 1 : 0
           ]
         );
       } else {
@@ -305,8 +316,8 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
             id, footer_message, show_gst, show_fssai, show_address, show_phone, printer_size, header_font_family, header_font_size, body_font_family,
             body_font_size, footer_font_family, footer_font_size, gst_enabled, gst_type, show_cashier_name, gst_percentage, row_height, logo_position, logo_size, logo_opacity, logo_base64,
             show_line_separators, show_token, sep_header, sep_meta, sep_token, sep_table_header, sep_table_body, sep_subtotals, sep_grand_total,
-            store_name_size, address_size, table_font_size, total_font_size
-          ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34)`,
+            store_name_size, address_size, table_font_size, total_font_size, dynamic_upi_qr, static_upi_qr, no_qr_print
+          ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37)`,
           [
             billConfig.footer_message, billConfig.show_gst ? 1 : 0, billConfig.show_fssai ? 1 : 0, billConfig.show_address ? 1 : 0, billConfig.show_phone ? 1 : 0,
             billConfig.printer_size, billConfig.header_font_family, billConfig.header_font_size, billConfig.body_font_family,
@@ -315,7 +326,8 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
             billConfig.logo_position, billConfig.logo_size, billConfig.logo_opacity, billConfig.logo_base64,
             billConfig.show_line_separators ? 1 : 0, billConfig.show_token ? 1 : 0, billConfig.sep_header ? 1 : 0, billConfig.sep_meta ? 1 : 0,
             billConfig.sep_token ? 1 : 0, billConfig.sep_table_header ? 1 : 0, billConfig.sep_table_body ? 1 : 0, billConfig.sep_subtotals ? 1 : 0,
-            billConfig.sep_grand_total ? 1 : 0, billConfig.store_name_size, billConfig.address_size, billConfig.table_font_size, billConfig.total_font_size
+            billConfig.sep_grand_total ? 1 : 0, billConfig.store_name_size, billConfig.address_size, billConfig.table_font_size, billConfig.total_font_size,
+            billConfig.dynamic_upi_qr ? 1 : 0, billConfig.static_upi_qr ? 1 : 0, billConfig.no_qr_print ? 1 : 0
           ]
         );
       }
@@ -571,6 +583,43 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
                 <label className="modern-checkbox-label">
                   <input type="checkbox" checked={billConfig.show_cashier_name} onChange={(e) => setBillConfig({...billConfig, show_cashier_name: e.target.checked})} />
                   Show Cashier
+                </label>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+              <label className="modern-label" style={{ color: 'var(--text-primary)' }}>
+                UPI QR Code Printing Settings
+              </label>
+              <div className="modern-grid-3" style={{ background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <label className="modern-checkbox-label">
+                  <input 
+                    type="radio" 
+                    name="qr_print_type" 
+                    checked={billConfig.dynamic_upi_qr} 
+                    onChange={() => setBillConfig({...billConfig, dynamic_upi_qr: true, static_upi_qr: false, no_qr_print: false})} 
+                  />
+                  <span style={{ fontWeight: 'bold' }}>Dynamic UPI QR</span>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '1.5rem', marginTop: '0.2rem', textTransform: 'none' }}>Amount included</div>
+                </label>
+                <label className="modern-checkbox-label">
+                  <input 
+                    type="radio" 
+                    name="qr_print_type" 
+                    checked={billConfig.static_upi_qr} 
+                    onChange={() => setBillConfig({...billConfig, dynamic_upi_qr: false, static_upi_qr: true, no_qr_print: false})} 
+                  />
+                  <span style={{ fontWeight: 'bold' }}>Static UPI QR</span>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '1.5rem', marginTop: '0.2rem', textTransform: 'none' }}>Directly to UPI ID</div>
+                </label>
+                <label className="modern-checkbox-label">
+                  <input 
+                    type="radio" 
+                    name="qr_print_type" 
+                    checked={billConfig.no_qr_print} 
+                    onChange={() => setBillConfig({...billConfig, dynamic_upi_qr: false, static_upi_qr: false, no_qr_print: true})} 
+                  />
+                  <span style={{ fontWeight: 'bold' }}>No QR Print</span>
                 </label>
               </div>
             </div>
@@ -957,6 +1006,32 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
           }}>
             {billConfig.footer_message || "Thank you! Visit again."}
           </div>
+          
+          {/* Dummy QR Code Section */}
+          {(!billConfig.no_qr_print) && (
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              marginTop: '15px', 
+              paddingTop: '15px',
+              fontFamily: billConfig.body_font_family,
+              zIndex: 1
+            }}>
+              <div style={{ fontSize: '0.85em', marginBottom: '5px' }}>Scan to Pay via UPI</div>
+              <div style={{ 
+                width: '100px', 
+                height: '100px', 
+                border: '1px solid #000', 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                background: '#fff' 
+              }}>
+                <QrCode size={64} color="#000" />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* KOT Preview */}

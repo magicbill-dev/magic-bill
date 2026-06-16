@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import Database from "@tauri-apps/plugin-sql";
 import { invoke } from "@tauri-apps/api/core";
+import QRCode from "qrcode";
 import { Download, Printer, Calendar as CalendarIcon, TrendingUp, Package, Users, Receipt, Eye, Edit2, Trash2, X, PlusCircle } from "lucide-react";
 
 interface ReportsProps {
@@ -444,6 +445,70 @@ export default function Reports({ db }: ReportsProps) {
   const padRight = (text: string, width: number) => text.length >= width ? text.substring(0, width) : text.padEnd(width);
   const padLeft = (text: string, width: number) => text.length >= width ? text.substring(0, width) : text.padStart(width);
 
+  const generateESCPOSImage = async (base64: string, sizePercent: number, paperSize: string): Promise<number[]> => {
+    return new Promise((resolve) => {
+      if (!base64) {
+        resolve([]);
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        if (!img.width || !img.height || img.width <= 0 || img.height <= 0) {
+           resolve([]);
+           return;
+        }
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { resolve([]); return; }
+        let maxWidth = 384; 
+        if (paperSize === "4inch") maxWidth = 800; 
+        else if (paperSize === "3inch") maxWidth = 576; 
+        const targetWidth = Math.max(8, Math.floor(maxWidth * (sizePercent / 100)));
+        const targetHeight = Math.max(8, Math.floor((img.height / img.width) * targetWidth));
+        const width = Math.floor((targetWidth + 7) / 8) * 8;
+        const height = targetHeight;
+        canvas.width = width;
+        canvas.height = height;
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, targetWidth, height);
+        const imgData = ctx.getImageData(0, 0, width, height);
+        const pixels = imgData.data;
+        const bytes: number[] = [];
+        bytes.push(0x1B, 0x61, 0x01); 
+        bytes.push(0x1D, 0x76, 0x30, 0x00); 
+        const xL = (width / 8) % 256;
+        const xH = Math.floor((width / 8) / 256);
+        const yL = height % 256;
+        const yH = Math.floor(height / 256);
+        bytes.push(xL, xH, yL, yH);
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x += 8) {
+            let byte = 0;
+            for (let bit = 0; bit < 8; bit++) {
+              if (x + bit < width) {
+                const idx = ((y * width) + (x + bit)) * 4;
+                const r = pixels[idx];
+                const g = pixels[idx + 1];
+                const b = pixels[idx + 2];
+                const a = pixels[idx + 3];
+                const luma = (r * 0.299 + g * 0.587 + b * 0.114);
+                const isBlack = (a > 128) && (luma < 128);
+                if (isBlack) byte |= (1 << (7 - bit));
+              }
+            }
+            bytes.push(byte);
+          }
+        }
+        bytes.push(0x1B, 0x61, 0x00); 
+        bytes.push(0x0A);
+        resolve(bytes);
+      };
+      img.onerror = () => resolve([]);
+      img.src = base64;
+    });
+  };
+
   const buildPrintData = (text: string, printBold: boolean): number[] => {
     const encoder = new TextEncoder();
     let data: number[] = [0x1B, 0x40];
@@ -545,7 +610,37 @@ export default function Reports({ db }: ReportsProps) {
       text += "\x1B\x61\x00";
 
       try {
-          const rawData = buildPrintData(text, Boolean(printerSettings?.print_bold));
+          let rawData = buildPrintData(text, Boolean(printerSettings?.print_bold));
+
+          // --- UPI QR CODE SECTION ---
+          if (storeSettings?.upi_id && billSettings?.no_qr_print === false) {
+              let upiString = `upi://pay?pa=${storeSettings.upi_id}&pn=${encodeURIComponent(storeSettings.merchant_name || storeSettings.hotel_name || 'Restaurant')}&cu=INR`;
+              
+              if (storeSettings.payment_reference) {
+                  upiString += `&tr=${encodeURIComponent(storeSettings.payment_reference)}`;
+              }
+              
+              if (billSettings?.dynamic_upi_qr) {
+                  upiString += `&am=${order.total.toFixed(2)}`;
+              }
+
+              try {
+                  const qrBase64 = await QRCode.toDataURL(upiString, { margin: 1, width: 250 });
+                  const qrBytes = await generateESCPOSImage(qrBase64, 40, printerSettings?.paper_size || "3inch");
+                  
+                  if (qrBytes.length > 0) {
+                      const cutBytes = rawData.splice(-4, 4);
+                      rawData.push(0x1B, 0x61, 0x01); 
+                      rawData.push(...Array.from(new TextEncoder().encode("Scan to Pay via UPI\n")));
+                      rawData = rawData.concat(qrBytes);
+                      rawData.push(0x0A, 0x0A, 0x0A, 0x0A);
+                      rawData = rawData.concat(cutBytes);
+                  }
+              } catch (qrErr) {
+                  console.error("Failed to generate QR code:", qrErr);
+              }
+          }
+
           await invoke("print_receipt_raw", { printerName, data: rawData });
           setToastMessage(`Print successful!`);
       } catch (e) {
