@@ -98,7 +98,7 @@ export default function Billing({ db }: BillingProps) {
   const [kotSettings, setKotSettings] = useState<any>(null);
   const [printerSettings, setPrinterSettings] = useState<any>(null);
   const [storeSettings, setStoreSettings] = useState<any>(null);
-  const [isPaymentModeOpen, setIsPaymentModeOpen] = useState(false);
+  const [isPaymentModeOpen, setIsPaymentModeOpen] = useState(true);
   const [categoryPrinters, setCategoryPrinters] = useState<Record<number, string>>({});
   const [categories, setCategories] = useState<any[]>([]);
 
@@ -819,7 +819,17 @@ export default function Billing({ db }: BillingProps) {
       setOriginalCart(JSON.parse(order.cart_data) as CartItem[]);
       setCustomerName(order.customer_name || "");
       setCustomerPhone(order.customer_phone || "");
-      setPaymentMode(order.payment_mode || "Cash");
+      
+      if (order.payment_mode === "Credit") {
+        setBillingType("Credit");
+        setPaymentMode("Cash");
+        setSelectedCustomerId((order as any).customer_id || null);
+      } else {
+        setBillingType("Cash");
+        setPaymentMode(order.payment_mode || "Cash");
+        setSelectedCustomerId(null);
+      }
+
       setOrderType((order.order_type as "Table" | "Parcel" | "Self Service") || "Self Service");
       setTableNumber(order.table_number || "");
       setActiveOrderId(order.id);
@@ -1073,28 +1083,43 @@ export default function Billing({ db }: BillingProps) {
       let finalBillNo = "";
       let finalTokenNumber = activeTokenNumber;
 
+      let cName = customerName;
+      let cPhone = customerPhone;
+      let pMode = paymentMode;
+
+      if (billingType === "Credit" && selectedCustomerId) {
+        const c = creditCustomers.find(c => c.id === selectedCustomerId);
+        if (c) {
+          cName = c.name;
+          cPhone = c.phone;
+          pMode = "Credit";
+        }
+        finalCustomerId = selectedCustomerId;
+      }
+
       if (db && activeOrderId) {
         try {
           // Find the order before deleting
           const orderData = await db.select<any[]>("SELECT * FROM processing_orders WHERE id = $1", [activeOrderId]);
           if (orderData.length > 0) {
               const order = orderData[0];
-              finalCustomerId = order.customer_id;
               finalBillNo = order.bill_number;
               
               if (!finalTokenNumber && order.token_number) {
                   finalTokenNumber = order.token_number;
               }
 
+              const cartDataStr = JSON.stringify(cart);
+
               // Note: bill_current_number was already incremented when the processing_order (KOT) was created.
               await db.execute(
                 `INSERT INTO finalized_orders (cart_data, customer_name, customer_phone, payment_mode, subtotal, gst, total, order_type, table_number, customer_id, bill_number, token_number, created_at) 
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-                [order.cart_data, order.customer_name, order.customer_phone, order.payment_mode, order.subtotal, order.gst, order.total, order.order_type, order.table_number, order.customer_id, finalBillNo, finalTokenNumber, order.created_at]
+                [cartDataStr, cName, cPhone, pMode, subtotal, gst, total, orderType, tableNumber, finalCustomerId, finalBillNo, finalTokenNumber, order.created_at]
               );
 
-              if (order.payment_mode === "Credit" && order.customer_id) {
-                 await db.execute("UPDATE customers SET credit_balance = credit_balance + $1 WHERE id = $2", [order.total, order.customer_id]);
+              if (pMode === "Credit" && finalCustomerId) {
+                 await db.execute("UPDATE customers SET credit_balance = credit_balance + $1 WHERE id = $2", [total, finalCustomerId]);
               }
           }
           await db.execute("DELETE FROM processing_orders WHERE id = $1", [activeOrderId]);
@@ -1115,19 +1140,9 @@ export default function Billing({ db }: BillingProps) {
              }
              
              const cartDataStr = JSON.stringify(cart);
-             let cName = customerName;
-             let cPhone = customerPhone;
-             let pMode = paymentMode;
-             
-             if (billingType === "Credit" && selectedCustomerId) {
-               const c = creditCustomers.find(c => c.id === selectedCustomerId);
-               if (c) {
-                 cName = c.name;
-                 cPhone = c.phone;
-                 pMode = "Credit";
-               }
-               finalCustomerId = selectedCustomerId;
-               await db.execute("UPDATE customers SET credit_balance = credit_balance + $1 WHERE id = $2", [total, selectedCustomerId]);
+
+             if (pMode === "Credit" && finalCustomerId) {
+               await db.execute("UPDATE customers SET credit_balance = credit_balance + $1 WHERE id = $2", [total, finalCustomerId]);
              }
 
              await db.execute(
@@ -1785,61 +1800,7 @@ export default function Billing({ db }: BillingProps) {
 
       {/* Sidebar Summary */}
       <div className="billing-sidebar">
-        <div className="customer-info-section" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-            <button
-              onClick={() => setBillingType("Cash")}
-              className={`modern-tab-btn ${billingType === "Cash" ? 'active' : ''}`}
-            >
-              Cash Billing
-            </button>
-            <button
-              onClick={() => setBillingType("Credit")}
-              className={`modern-tab-btn ${billingType === "Credit" ? 'active' : ''}`}
-            >
-              Credit Billing
-            </button>
-          </div>
 
-          {billingType === "Credit" && (
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <select
-                value={selectedCustomerId || ""}
-                onChange={(e) => setSelectedCustomerId(Number(e.target.value))}
-                style={{
-                  flex: 1,
-                  padding: '0.5rem',
-                  borderRadius: '0.5rem',
-                  border: '1px solid var(--border-color)',
-                  background: 'var(--bg-white)',
-                  color: 'var(--text-primary)'
-                }}
-              >
-                <option value="" disabled>Select Customer</option>
-                {creditCustomers.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} {c.phone ? `(${c.phone})` : ''}</option>
-                ))}
-              </select>
-              <button
-                onClick={() => setIsAddCustomerPopupOpen(true)}
-                style={{
-                  padding: '0.5rem',
-                  background: 'var(--primary)',
-                  color: 'var(--primary-fg)',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                title="Add Customer"
-              >
-                <Plus size={20} />
-              </button>
-            </div>
-          )}
-        </div>
 
         {/* Cart Table (Moved to Sidebar) */}
         <div className="cart-section" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -1931,34 +1892,84 @@ export default function Billing({ db }: BillingProps) {
               marginBottom: isPaymentModeOpen ? '0.25rem' : '0'
             }}
           >
-            <h4 style={{ margin: 0 }}>Payment Mode: {paymentMode}</h4>
+            <h4 style={{ margin: 0 }}>Payment Mode: {billingType === "Credit" ? "Credit" : paymentMode}</h4>
             {isPaymentModeOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           </button>
           
           {isPaymentModeOpen && (
-            <div className="payment-grid">
-              <button 
-                className={`modern-tab-btn ${paymentMode === "Cash" ? "active" : ""}`}
-                onClick={() => setPaymentMode("Cash")}
-              >
-                <Banknote size={16} />
-                <span>Cash</span>
-              </button>
-              <button 
-                className={`modern-tab-btn ${paymentMode === "Card" ? "active" : ""}`}
-                onClick={() => setPaymentMode("Card")}
-              >
-                <CreditCard size={16} />
-                <span>Card</span>
-              </button>
-              <button 
-                className={`modern-tab-btn ${paymentMode === "UPI" ? "active" : ""}`}
-                onClick={() => setPaymentMode("UPI")}
-              >
-                <Smartphone size={16} />
-                <span>UPI</span>
-              </button>
-            </div>
+            <>
+              <div className="payment-grid" style={{ marginBottom: '0.5rem' }}>
+                <button 
+                  className={`modern-tab-btn ${paymentMode === "Cash" && billingType !== "Credit" ? "active" : ""}`}
+                  onClick={() => { setPaymentMode("Cash"); setBillingType("Cash"); }}
+                >
+                  <Banknote size={16} />
+                  <span>Cash</span>
+                </button>
+                <button 
+                  className={`modern-tab-btn ${paymentMode === "Card" && billingType !== "Credit" ? "active" : ""}`}
+                  onClick={() => { setPaymentMode("Card"); setBillingType("Cash"); }}
+                >
+                  <CreditCard size={16} />
+                  <span>Card</span>
+                </button>
+                <button 
+                  className={`modern-tab-btn ${paymentMode === "UPI" && billingType !== "Credit" ? "active" : ""}`}
+                  onClick={() => { setPaymentMode("UPI"); setBillingType("Cash"); }}
+                >
+                  <Smartphone size={16} />
+                  <span>UPI</span>
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <button
+                  onClick={() => { setBillingType("Credit"); setPaymentMode("Cash"); }}
+                  className={`modern-tab-btn ${billingType === "Credit" ? 'active' : ''}`}
+                  style={{ flex: billingType === "Credit" ? '0 0 auto' : '1' }}
+                >
+                  Credit Billing
+                </button>
+
+                {billingType === "Credit" && (
+                  <>
+                    <select
+                      value={selectedCustomerId || ""}
+                      onChange={(e) => setSelectedCustomerId(Number(e.target.value))}
+                      style={{
+                        flex: 1,
+                        padding: '0.5rem',
+                        borderRadius: '0.5rem',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--bg-white)',
+                        color: 'var(--text-primary)'
+                      }}
+                    >
+                      <option value="" disabled>Select Customer</option>
+                      {creditCustomers.map(c => (
+                        <option key={c.id} value={c.id}>{c.name} {c.phone ? `(${c.phone})` : ''}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => setIsAddCustomerPopupOpen(true)}
+                      style={{
+                        padding: '0.5rem',
+                        background: 'var(--primary)',
+                        color: 'var(--primary-fg)',
+                        border: 'none',
+                        borderRadius: '0.5rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      title="Add Customer"
+                    >
+                      <Plus size={20} />
+                    </button>
+                  </>
+                )}
+              </div>
+            </>
           )}
         </div>
 
