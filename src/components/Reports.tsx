@@ -87,6 +87,10 @@ export default function Reports({ db }: ReportsProps) {
   const [partialPaymentMode, setPartialPaymentMode] = useState<string>("Cash");
   const [editingCustomer, setEditingCustomer] = useState<{id: number, name: string} | null>(null);
 
+  // Edit Payment Mode State
+  const [editingPaymentModeId, setEditingPaymentModeId] = useState<number | null>(null);
+  const [newPaymentMode, setNewPaymentMode] = useState<string>("Cash");
+
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -654,6 +658,20 @@ export default function Reports({ db }: ReportsProps) {
       }
   };
 
+  const handleUpdatePaymentMode = async (orderId: number) => {
+      if (!db) return;
+      try {
+          await db.execute("UPDATE finalized_orders SET payment_mode = $1 WHERE id = $2", [newPaymentMode, orderId]);
+          setOrders(prev => prev.map(o => o.id === orderId ? { ...o, payment_mode: newPaymentMode } : o));
+          setEditingPaymentModeId(null);
+          setToastMessage("Payment mode updated successfully.");
+          fetchData(); // Refresh the sales summary if needed
+      } catch (err) {
+          console.error("Failed to update payment mode:", err);
+          setToastMessage("Failed to update payment mode.");
+      }
+  };
+
   const handlePrintCustomerReport = async () => {
       if (!selectedCustomer) return;
       const printerName = printerSettings?.default_printer;
@@ -1186,18 +1204,61 @@ export default function Reports({ db }: ReportsProps) {
                         <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Bill No</th>
                         <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Date/Time</th>
                         <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Customer</th>
+                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Payment Mode</th>
                         <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textAlign: 'right' }}>Total</th>
                         <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textAlign: 'center' }}>Action</th>
                     </tr>
                     </thead>
                     <tbody>
                     {orders.length === 0 ? (
-                        <tr><td colSpan={5} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>No bills found.</td></tr>
+                        <tr><td colSpan={6} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>No bills found.</td></tr>
                     ) : orders.map((o, idx) => (
                         <tr key={o.id} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: idx % 2 === 0 ? 'transparent' : 'var(--bg-light)' }}>
                             <td style={{ padding: '0.875rem 0.75rem', fontWeight: 600, color: 'var(--primary)' }}>{(o as any).bill_number ? `${(o as any).bill_number}` : `#${o.id}`}</td>
                             <td style={{ padding: '0.875rem 0.75rem' }}>{new Date(o.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</td>
                             <td style={{ padding: '0.875rem 0.75rem', fontWeight: 500 }}>{o.customer_name || 'Guest'}</td>
+                            <td style={{ padding: '0.875rem 0.75rem' }}>
+                                {editingPaymentModeId === o.id ? (
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                        <select 
+                                            value={newPaymentMode}
+                                            onChange={(e) => setNewPaymentMode(e.target.value)}
+                                            style={{ padding: '0.2rem 0.4rem', borderRadius: '0.25rem', border: '1px solid var(--primary)', fontSize: '0.875rem', background: 'var(--bg-light)', color: 'var(--text-primary)' }}
+                                        >
+                                            <option value="Cash">Cash</option>
+                                            <option value="Card">Card</option>
+                                            <option value="UPI">UPI</option>
+                                            <option value="Credit">Credit</option>
+                                        </select>
+                                        <button 
+                                            onClick={() => handleUpdatePaymentMode(o.id)}
+                                            style={{ background: 'var(--primary)', color: 'var(--primary-fg)', border: 'none', borderRadius: '0.25rem', padding: '0.2rem 0.4rem', cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }}
+                                        >
+                                            Save
+                                        </button>
+                                        <button 
+                                            onClick={() => setEditingPaymentModeId(null)}
+                                            style={{ background: 'var(--bg-light)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '0.25rem', padding: '0.2rem 0.4rem', cursor: 'pointer', fontSize: '0.75rem' }}
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <span>{o.payment_mode || 'Cash'}</span>
+                                        <button 
+                                            onClick={() => {
+                                                setEditingPaymentModeId(o.id);
+                                                setNewPaymentMode(o.payment_mode || 'Cash');
+                                            }}
+                                            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }}
+                                            title="Edit Payment Mode"
+                                        >
+                                            <Edit2 size={12} />
+                                        </button>
+                                    </div>
+                                )}
+                            </td>
                             <td style={{ padding: '0.875rem 0.75rem', textAlign: 'right', fontWeight: 700 }}>₹{o.total.toFixed(2)}</td>
                             <td style={{ padding: '0.875rem 0.75rem', textAlign: 'center' }}>
                                 <button 

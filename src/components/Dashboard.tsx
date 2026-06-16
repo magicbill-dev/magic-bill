@@ -16,9 +16,16 @@ interface DashboardProps {
 export default function Dashboard({ db }: DashboardProps) {
     const [loading, setLoading] = useState(true);
     const [isCheckingPlan, setIsCheckingPlan] = useState(true);
-    const [timeRange, setTimeRange] = useState<"today" | "7d" | "30d" | "all">("30d");
+    const [timeRange, setTimeRange] = useState<"today" | "7d" | "30d" | "all">(() => {
+        return (localStorage.getItem("dashboardTimeRange") as any) || "today";
+    });
     const [isPlanExpired, setIsPlanExpired] = useState(false);
     
+    // Save time range preference
+    useEffect(() => {
+        localStorage.setItem("dashboardTimeRange", timeRange);
+    }, [timeRange]);
+
     // Raw Data
     const [orders, setOrders] = useState<any[]>([]);
     const [expenses, setExpenses] = useState<any[]>([]);
@@ -99,7 +106,7 @@ export default function Dashboard({ db }: DashboardProps) {
         let totalExpenses = 0;
         let totalItemsSold = 0;
         
-        const dateMap: Record<string, { Revenue: number, Expenses: number }> = {};
+        const dateMap: Record<string, { Revenue: number, Expenses: number, display: string }> = {};
         const pModeMap: Record<string, number> = {};
         const oTypeMap: Record<string, number> = {};
         const itemSales: Record<number, { name: string, qty: number, revenue: number, category_id: number }> = {};
@@ -115,10 +122,28 @@ export default function Dashboard({ db }: DashboardProps) {
             const oType = o.order_type || "Unknown";
             oTypeMap[oType] = (oTypeMap[oType] || 0) + 1;
 
-            // Trend mapping (Group by Date)
-            const d = o.created_at ? o.created_at.substring(0, 10) : 'Unknown';
-            if (!dateMap[d]) dateMap[d] = { Revenue: 0, Expenses: 0 };
-            dateMap[d].Revenue += (o.total || 0);
+            // Trend mapping
+            let dKey, dDisplay;
+            if (timeRange === "today") {
+                const dateObj = new Date(o.created_at);
+                if (!isNaN(dateObj.getTime())) {
+                    const hour = dateObj.getHours();
+                    dKey = hour.toString().padStart(2, '0');
+                    const ampm = hour >= 12 ? 'PM' : 'AM';
+                    const hour12 = hour % 12 || 12;
+                    dDisplay = `${hour12} ${ampm}`;
+                } else {
+                    dKey = 'Unknown';
+                    dDisplay = 'Unknown';
+                }
+            } else {
+                dKey = o.created_at ? o.created_at.substring(0, 10) : 'Unknown';
+                const dObj = new Date(dKey);
+                dDisplay = isNaN(dObj.getTime()) ? dKey : dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }
+
+            if (!dateMap[dKey]) dateMap[dKey] = { Revenue: 0, Expenses: 0, display: dDisplay };
+            dateMap[dKey].Revenue += (o.total || 0);
 
             // Item extraction from cart_data JSON
             try {
@@ -141,22 +166,45 @@ export default function Dashboard({ db }: DashboardProps) {
 
         expenses.forEach(e => {
             totalExpenses += (e.amount || 0);
-            const d = e.date ? e.date.substring(0, 10) : 'Unknown';
-            if (!dateMap[d]) dateMap[d] = { Revenue: 0, Expenses: 0 };
-            dateMap[d].Expenses += (e.amount || 0);
+            
+            let dKey, dDisplay;
+            if (timeRange === "today") {
+                const dateObj = new Date(e.date || e.created_at);
+                if (!isNaN(dateObj.getTime())) {
+                    const hour = dateObj.getHours();
+                    dKey = hour.toString().padStart(2, '0');
+                    const ampm = hour >= 12 ? 'PM' : 'AM';
+                    const hour12 = hour % 12 || 12;
+                    dDisplay = `${hour12} ${ampm}`;
+                } else {
+                    dKey = 'Unknown';
+                    dDisplay = 'Unknown';
+                }
+            } else {
+                dKey = (e.date || e.created_at) ? (e.date || e.created_at).substring(0, 10) : 'Unknown';
+                const dObj = new Date(dKey);
+                dDisplay = isNaN(dObj.getTime()) ? dKey : dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }
+
+            if (!dateMap[dKey]) dateMap[dKey] = { Revenue: 0, Expenses: 0, display: dDisplay };
+            dateMap[dKey].Expenses += (e.amount || 0);
         });
 
-        // Trend Data Array - sorted chronologically
-        const trendData = Object.keys(dateMap).sort().map(date => {
-            const dObj = new Date(date);
-            const display = isNaN(dObj.getTime()) ? date : dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            return {
-                rawDate: date,
-                name: display,
-                Revenue: dateMap[date].Revenue,
-                Expenses: dateMap[date].Expenses
-            };
-        });
+        // Trend Data Array - sorted chronologically by key
+        let trendData = Object.keys(dateMap).sort().map(key => ({
+            rawDate: key,
+            name: dateMap[key].display,
+            Revenue: dateMap[key].Revenue,
+            Expenses: dateMap[key].Expenses
+        }));
+
+        // Fix Recharts AreaChart issue with single data point by duplicating it
+        if (trendData.length === 1) {
+            trendData = [
+                { ...trendData[0], name: trendData[0].name + " (Start)" },
+                { ...trendData[0], name: trendData[0].name + " (End)" }
+            ];
+        }
 
         // Top Items by Quantity Sold
         const topItems = Object.values(itemSales).sort((a, b) => b.qty - a.qty).slice(0, 5);

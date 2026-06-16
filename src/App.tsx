@@ -566,10 +566,18 @@ function App() {
     <div className="app-container">
       {/* Sidebar */}
       <aside className="sidebar compact-sidebar">
-        <div className="logo-area compact-logo">
-          <img src="/magic_bill_logo.png" alt="Magic Bill Logo" style={{ width: '48px', height: '48px', objectFit: 'contain' }} />
-          <span>Magic Bill</span>
-        </div>
+        <button 
+          className={`logo-area compact-logo ${activeTab === "Account" ? "active-logo" : ""}`}
+          onClick={() => handleNavigate("Account")}
+          title="Account"
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '0.5rem 0', gap: '0.25rem' }}
+        >
+          <img src="/magic_bill_logo.png" alt="Magic Bill Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>MAGIC BILL</span>
+            <span style={{ fontSize: '0.65rem', fontWeight: 500, color: 'var(--primary)', textTransform: 'uppercase' }}>Account</span>
+          </div>
+        </button>
         
         <nav className="nav-menu">
           {navItems.map((item) => (
@@ -586,15 +594,6 @@ function App() {
         </nav>
 
         <div className="user-profile compact-profile" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingBottom: '0' }}>
-          <button 
-            className={`nav-item ${activeTab === "Account" ? "active" : ""}`}
-            onClick={() => handleNavigate("Account")}
-            title="Account"
-            style={{ marginBottom: '4px' }}
-          >
-            <Users size={24} className="nav-icon" />
-            <span className="nav-label">Account</span>
-          </button>
           <button 
             className={`nav-item ${isSettingsPanelOpen ? "active" : ""}`}
             onClick={() => setIsSettingsPanelOpen(!isSettingsPanelOpen)}

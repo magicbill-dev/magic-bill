@@ -27,6 +27,7 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
   const [newItemName, setNewItemName] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
   const [loading, setLoading] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const itemNameRef = useRef<HTMLInputElement>(null);
   const itemPriceRef = useRef<HTMLInputElement>(null);
@@ -43,6 +44,13 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
   const [editItemName, setEditItemName] = useState("");
   const [editItemPrice, setEditItemPrice] = useState("");
   const [editItemCategoryId, setEditItemCategoryId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
 
   useEffect(() => {
     if (db && activeTab === "Menu") {
@@ -91,6 +99,14 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
     if (!db || !newCategoryName.trim()) return;
 
     const nameToSave = newCategoryName.trim();
+    
+    // Duplicate check
+    const isDuplicate = categories.some(c => c.name.toLowerCase() === nameToSave.toLowerCase());
+    if (isDuplicate) {
+        setToastMessage("A category with this name already exists.");
+        return;
+    }
+
     setNewCategoryName("");
 
     const tempId = Date.now();
@@ -101,9 +117,10 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
     try {
       await db.execute("INSERT INTO categories (name) VALUES (?)", [nameToSave]);
       await fetchCategories();
+      setToastMessage("Category added.");
     } catch (error) {
       console.error("Failed to add category:", error);
-      alert(`Error adding category: ${error}`);
+      setToastMessage("Failed to add category.");
       await fetchCategories();
     }
   };
@@ -115,6 +132,13 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
     const nameToSave = newItemName.trim();
     const priceToSave = parseFloat(newItemPrice);
     
+    // Duplicate check
+    const isDuplicate = items.some(item => item.name.toLowerCase() === nameToSave.toLowerCase());
+    if (isDuplicate) {
+        setToastMessage("An item with this name already exists in this category.");
+        return;
+    }
+
     setNewItemName("");
     setNewItemPrice("");
     setTimeout(() => itemNameRef.current?.focus(), 0);
@@ -135,8 +159,10 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
         priceToSave
       ]);
       await fetchItems(selectedCategoryId);
+      setToastMessage("Item added.");
     } catch (error) {
       console.error("Failed to add item:", error);
+      setToastMessage("Failed to add item.");
       await fetchItems(selectedCategoryId);
     }
   };
@@ -158,8 +184,10 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
         await db.execute("DELETE FROM items WHERE category_id = ?", [id]);
         await db.execute("DELETE FROM categories WHERE id = ?", [id]);
         await fetchCategories();
+        setToastMessage("Category deleted.");
       } catch (error) {
         console.error("Failed to delete category:", error);
+        setToastMessage("Failed to delete category.");
         await fetchCategories();
       }
     } else {
@@ -168,8 +196,10 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
       try {
         await db.execute("DELETE FROM items WHERE id = ?", [id]);
         if (selectedCategoryId) await fetchItems(selectedCategoryId);
+        setToastMessage("Item deleted.");
       } catch (error) {
         console.error("Failed to delete item:", error);
+        setToastMessage("Failed to delete item.");
         if (selectedCategoryId) await fetchItems(selectedCategoryId);
       }
     }
@@ -184,12 +214,21 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
     if (!db || !editCategoryName.trim()) return;
     const newName = editCategoryName.trim();
     
+    // Duplicate check
+    const isDuplicate = categories.some(c => c.id !== id && c.name.toLowerCase() === newName.toLowerCase());
+    if (isDuplicate) {
+        setToastMessage("A category with this name already exists.");
+        return;
+    }
+
     setCategories(prev => prev.map(c => c.id === id ? { ...c, name: newName } : c).sort((a, b) => a.name.localeCompare(b.name)));
     setEditingCategoryId(null);
     try {
       await db.execute("UPDATE categories SET name = ? WHERE id = ?", [newName, id]);
+      setToastMessage("Category updated.");
     } catch (error) {
       console.error("Failed to update category", error);
+      setToastMessage("Failed to update category.");
       fetchCategories();
     }
   };
@@ -215,6 +254,26 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
     const nameToSave = editItemName.trim();
     const priceToSave = parseFloat(editItemPrice);
     const categoryToSave = editItemCategoryId;
+
+    if (categoryToSave === selectedCategoryId) {
+       // Duplicate check within current category view
+       const isDuplicate = items.some(item => item.id !== id && item.name.toLowerCase() === nameToSave.toLowerCase());
+       if (isDuplicate) {
+           setToastMessage("An item with this name already exists in this category.");
+           return;
+       }
+    } else {
+        // Checking against db if moving to a different category
+        try {
+            const existing = await db.select<Item[]>("SELECT id FROM items WHERE category_id = $1 AND LOWER(name) = LOWER($2)", [categoryToSave, nameToSave]);
+            if (existing && existing.length > 0) {
+                 setToastMessage("An item with this name already exists in the target category.");
+                 return;
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
 
     // Optimistic Update
     setItems(prev => prev.map(item => {
@@ -242,8 +301,10 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
       if (selectedCategoryId) {
          await fetchItems(selectedCategoryId);
       }
+      setToastMessage("Item updated.");
     } catch (error) {
       console.error("Failed to update item:", error);
+      setToastMessage("Failed to update item.");
       if (selectedCategoryId) await fetchItems(selectedCategoryId);
     }
   };
@@ -251,8 +312,18 @@ export default function MenuManagement({ db, activeTab }: MenuManagementProps) {
   const activeCategory = categories.find(c => c.id === selectedCategoryId);
 
   return (
-    <div className="settings-page-wrapper" style={{ flexDirection: 'row', padding: 0, overflow: 'hidden' }}>
+    <div className="settings-page-wrapper" style={{ flexDirection: 'row', padding: 0, overflow: 'hidden', position: 'relative' }}>
       
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div style={{
+          position: 'absolute', top: '20px', right: '20px', backgroundColor: 'var(--primary)', color: 'var(--primary-fg)',
+          padding: '0.75rem 1.25rem', borderRadius: '0.5rem', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)', zIndex: 2000, fontWeight: 600, fontSize: '0.875rem'
+        }}>
+          {toastMessage}
+        </div>
+      )}
+
       {/* LEFT COLUMN: CATEGORIES */}
       <div style={{ 
         width: '350px', 

@@ -1893,11 +1893,12 @@ export default function Billing({ db }: BillingProps) {
               border: 'none', 
               padding: 0, 
               cursor: 'pointer',
+              color: 'inherit',
               marginBottom: isPaymentModeOpen ? '0.25rem' : '0'
             }}
           >
             <h4 style={{ margin: 0 }}>Payment Mode: {billingType === "Credit" ? "Credit" : paymentMode}</h4>
-            {isPaymentModeOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            {isPaymentModeOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
           </button>
           
           {isPaymentModeOpen && (
