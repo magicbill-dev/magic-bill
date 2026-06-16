@@ -217,10 +217,15 @@ export default function Reports({ db }: ReportsProps) {
         );
         
         // Fetch Payments
-        const payments = await db.select<CustomerPayment[]>(
-            "SELECT * FROM customer_payments WHERE customer_id = $1 AND datetime(date, 'localtime') >= $2 AND datetime(date, 'localtime') <= $3",
-            [customerId, startDate, endDate]
-        );
+        let payments: CustomerPayment[] = [];
+        try {
+            payments = await db.select<CustomerPayment[]>(
+                "SELECT * FROM customer_payments WHERE customer_id = $1 AND datetime(date, 'localtime') >= $2 AND datetime(date, 'localtime') <= $3",
+                [customerId, startDate, endDate]
+            );
+        } catch (e) {
+            console.warn("Failed to fetch customer payments. Table might not exist yet:", e);
+        }
 
         // Merge and sort
         const transactions: Transaction[] = [

@@ -1533,7 +1533,11 @@ export default function Billing({ db }: BillingProps) {
               type="text"
               placeholder="Search items (Type name...)"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val.startsWith(' ') && val.trim() === '') return;
+                setSearchTerm(val);
+              }}
               onKeyDown={handleKeyDown}
               className="billing-search-input"
             />

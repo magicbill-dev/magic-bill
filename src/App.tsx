@@ -347,6 +347,17 @@ function App() {
           );
         `);
 
+        await dbInstance.execute(`
+          CREATE TABLE IF NOT EXISTS customer_payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            payment_mode TEXT,
+            date TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE CASCADE
+          );
+        `);
+
         await addColumn('finalized_orders', 'customer_id', 'INTEGER', "NULL");
         await addColumn('processing_orders', 'customer_id', 'INTEGER', "NULL");
         await addColumn('processing_orders', 'token_number', 'INTEGER', "NULL");
