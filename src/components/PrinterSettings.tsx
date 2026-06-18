@@ -326,6 +326,34 @@ export default function PrinterSettings({ db, activeTab, setUnsavedChanges, setT
                 </div>
               </div>
 
+              {settings.printer_mode === "Single Printer" && (
+                <div className="modern-form-group" style={{ paddingTop: '1rem', borderTop: '1px dashed rgba(255,255,255,0.1)' }}>
+                  <label className="modern-label">KOT Printing Style</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <label className="modern-checkbox-label" style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)', fontWeight: 500 }}>
+                      <input
+                        type="radio"
+                        name="kot_printing_style"
+                        value="Single KOT"
+                        checked={settings.kot_printing_style === "Single KOT"}
+                        onChange={(e) => setSettings({ ...settings, kot_printing_style: e.target.value })}
+                      />
+                      Single KOT (All items in one ticket)
+                    </label>
+                    <label className="modern-checkbox-label" style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)', fontWeight: 500 }}>
+                      <input
+                        type="radio"
+                        name="kot_printing_style"
+                        value="Category-wise KOTs"
+                        checked={settings.kot_printing_style === "Category-wise KOTs"}
+                        onChange={(e) => setSettings({ ...settings, kot_printing_style: e.target.value })}
+                      />
+                      Category-wise KOTs (Separate tickets for each category)
+                    </label>
+                  </div>
+                </div>
+              )}
+
               <div className="modern-form-group">
                 <label className="modern-label">Default Printer (Bills & Unassigned KOTs)</label>
                 <select
@@ -425,7 +453,7 @@ export default function PrinterSettings({ db, activeTab, setUnsavedChanges, setT
                       onChange={(e) => setSettings({ ...settings, disable_kot: e.target.checked })}
                     />
                     Disable KOT Function Entirely
-                    <span style={{ fontWeight: 'normal', color: 'var(--text-secondary)', fontSize: '0.75rem', marginLeft: 'auto' }}>(Enter button directly prints Bill)</span>
+                    <span style={{ fontWeight: 'normal', color: 'var(--text-secondary)', fontSize: '0.75rem', marginLeft: 'auto' }}>(Order goes directly to Processing)</span>
                   </label>
                 </div>
               </div>

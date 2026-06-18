@@ -805,7 +805,9 @@ export default function Billing({ db }: BillingProps) {
         setTableNumber(finalTableNum);
     }
 
-    if (printerSettings?.kot_print_confirmation) {
+    if (printerSettings?.disable_kot) {
+      executePrintKOT(finalTableNum, true);
+    } else if (printerSettings?.kot_print_confirmation) {
       setIsKotConfirmPopupOpen(true);
     } else {
       executePrintKOT(finalTableNum);
@@ -1005,9 +1007,7 @@ export default function Billing({ db }: BillingProps) {
         openQtyPopup(suggestions[selectedSuggestionIndex]);
       } else if (trimmedSearch === "") {
         if (cart.length > 0) {
-          if (printerSettings?.disable_kot) {
-            handleCheckout();
-          } else if (!isKOTPrinted) {
+          if (!isKOTPrinted) {
             handlePrintKOT();
           } else {
             handleCheckout();
@@ -1996,11 +1996,13 @@ export default function Billing({ db }: BillingProps) {
         </div>
 
         <div className="action-buttons" style={{ display: 'flex', gap: '0.5rem' }}>
-          {!printerSettings?.disable_kot && (
-            <button className="btn-checkout" onClick={handlePrintKOT} disabled={isProcessing} style={{ flex: 1, opacity: isProcessing ? 0.6 : 1, cursor: isProcessing ? 'not-allowed' : 'pointer' }}>
-              <Printer size={16} style={{ marginRight: '0.25rem' }} /> {isProcessing ? 'Processing...' : 'Print KOT'}
-            </button>
-          )}
+          <button className="btn-checkout" onClick={handlePrintKOT} disabled={isProcessing} style={{ flex: 1, opacity: isProcessing ? 0.6 : 1, cursor: isProcessing ? 'not-allowed' : 'pointer' }}>
+            {printerSettings?.disable_kot ? (
+              <><CheckCircle size={16} style={{ marginRight: '0.25rem' }} /> {isProcessing ? 'Processing...' : 'Save Order'}</>
+            ) : (
+              <><Printer size={16} style={{ marginRight: '0.25rem' }} /> {isProcessing ? 'Processing...' : 'Print KOT'}</>
+            )}
+          </button>
           <button className="btn-checkout" onClick={handleCheckout} disabled={isProcessing} style={{ flex: 1, opacity: isProcessing ? 0.6 : 1, cursor: isProcessing ? 'not-allowed' : 'pointer' }}>
             <CheckCircle size={16} style={{ marginRight: '0.25rem' }} /> {isProcessing ? 'Processing...' : 'Complete Bill'}
           </button>
