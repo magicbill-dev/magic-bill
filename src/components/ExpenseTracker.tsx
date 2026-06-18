@@ -43,9 +43,10 @@ export default function ExpenseTracker({ db }: ExpenseTrackerProps) {
 
     try {
       setLoading(true);
+      const dateStr = new Date().toISOString();
       await db.execute(
-        "INSERT INTO expenses (description, amount, category) VALUES (?, ?, ?)",
-        [description, parseFloat(amount), category]
+        "INSERT INTO expenses (description, amount, category, date) VALUES (?, ?, ?, ?)",
+        [description, parseFloat(amount), category, dateStr]
       );
       setDescription("");
       setAmount("");

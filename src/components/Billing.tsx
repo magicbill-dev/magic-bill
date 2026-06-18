@@ -597,10 +597,11 @@ export default function Billing({ db }: BillingProps) {
               const currentBillNumber = printerSettings?.bill_current_number || 1;
               assignedBillNumber = `${printerSettings?.bill_prefix || ""}${currentBillNumber}`;
             }
+            const createdAtStr = new Date().toISOString();
             const result = await db.execute(
-              `INSERT INTO processing_orders (cart_data, customer_name, customer_phone, payment_mode, subtotal, gst, total, order_type, table_number, customer_id, token_number, bill_number) 
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-              [cartDataStr, cName, cPhone, pMode, subtotal, gst, total, orderType, finalTableNumber, selectedCustomerId, assignedTokenNumber, assignedBillNumber]
+              `INSERT INTO processing_orders (cart_data, customer_name, customer_phone, payment_mode, subtotal, gst, total, order_type, table_number, customer_id, token_number, bill_number, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+              [cartDataStr, cName, cPhone, pMode, subtotal, gst, total, orderType, finalTableNumber, selectedCustomerId, assignedTokenNumber, assignedBillNumber, createdAtStr]
             );
             currentOrderId = result.lastInsertId || null;
             setActiveOrderId(currentOrderId);
@@ -867,9 +868,10 @@ export default function Billing({ db }: BillingProps) {
       return;
     }
     try {
+      const createdAtStr = new Date().toISOString();
       const result = await db.execute(
-        `INSERT INTO customers (name, phone) VALUES ($1, $2)`,
-        [newCustomerName, newCustomerPhone]
+        `INSERT INTO customers (name, phone, created_at) VALUES ($1, $2, $3)`,
+        [newCustomerName, newCustomerPhone, createdAtStr]
       );
       await fetchCreditCustomers();
       setIsAddCustomerPopupOpen(false);
@@ -1145,10 +1147,11 @@ export default function Billing({ db }: BillingProps) {
                await db.execute("UPDATE customers SET credit_balance = credit_balance + $1 WHERE id = $2", [total, finalCustomerId]);
              }
 
+             const createdAtStr = new Date().toISOString();
              await db.execute(
-                `INSERT INTO finalized_orders (cart_data, customer_name, customer_phone, payment_mode, subtotal, gst, total, order_type, table_number, customer_id, bill_number, token_number) 
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-                [cartDataStr, cName, cPhone, pMode, subtotal, gst, total, orderType, tableNumber, finalCustomerId, finalBillNo, finalTokenNumber]
+                `INSERT INTO finalized_orders (cart_data, customer_name, customer_phone, payment_mode, subtotal, gst, total, order_type, table_number, customer_id, bill_number, token_number, created_at) 
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+                [cartDataStr, cName, cPhone, pMode, subtotal, gst, total, orderType, tableNumber, finalCustomerId, finalBillNo, finalTokenNumber, createdAtStr]
              );
              
              await db.execute("UPDATE printer_settings SET bill_current_number = bill_current_number + 1 WHERE id = 1");

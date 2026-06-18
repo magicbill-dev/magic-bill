@@ -693,7 +693,7 @@ export default function Dashboard({ db }: DashboardProps) {
                                     <tr key={idx}>
                                         <td style={{ fontWeight: 600 }}>{order.bill_number || `#${order.id}`}</td>
                                         <td style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                                            {order.created_at ? new Date(order.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Unknown'}
+                                            {order.created_at ? new Date(order.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'Unknown'}
                                         </td>
                                         <td><span className="badge">{order.order_type || 'Unknown'}</span></td>
                                         <td>{order.payment_mode || 'Cash'}</td>

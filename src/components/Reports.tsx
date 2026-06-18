@@ -268,8 +268,9 @@ export default function Reports({ db }: ReportsProps) {
 
       try {
           await db.execute("UPDATE customers SET credit_balance = credit_balance - $1 WHERE id = $2", [amount, selectedCustomer.id]);
-          await db.execute("INSERT INTO customer_payments (customer_id, amount, payment_mode) VALUES ($1, $2, $3)", 
-              [selectedCustomer.id, amount, partialPaymentMode]);
+          const dateStr = new Date().toISOString();
+          await db.execute("INSERT INTO customer_payments (customer_id, amount, payment_mode, date) VALUES ($1, $2, $3, $4)",
+              [selectedCustomer.id, amount, partialPaymentMode, dateStr]);
           
           setToastMessage("Payment recorded successfully.");
           setPartialPaymentAmount("");
@@ -326,8 +327,9 @@ export default function Reports({ db }: ReportsProps) {
 
       try {
           await db.execute("UPDATE customers SET credit_balance = 0 WHERE id = $1", [customerId]);
-          await db.execute("INSERT INTO customer_payments (customer_id, amount, payment_mode) VALUES ($1, $2, $3)", 
-            [customerId, amount, "Full Settlement"]);
+          const dateStr = new Date().toISOString();
+          await db.execute("INSERT INTO customer_payments (customer_id, amount, payment_mode, date) VALUES ($1, $2, $3, $4)", 
+            [customerId, amount, "Full Settlement", dateStr]);
             
           setToastMessage("Customer due settled successfully.");
           fetchData();
@@ -1387,7 +1389,7 @@ export default function Reports({ db }: ReportsProps) {
                                       <tr><td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>No history found.</td></tr>
                                   ) : customerTransactions.map((t, idx) => (
                                       <tr key={`${t.type}-${t.id}`} style={{ borderBottom: '1px solid var(--border-color)', background: idx % 2 === 0 ? 'transparent' : 'var(--bg-light)' }}>
-                                          <td style={{ padding: '0.75rem' }}>{new Date(t.date).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                                          <td style={{ padding: '0.75rem' }}>{new Date(t.date).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</td>
                                           <td style={{ padding: '0.75rem', display: 'flex', alignItems: 'center' }}>
                                               <span style={{ 
                                                   padding: '0.15rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.7rem', marginRight: '0.5rem',
