@@ -1,6 +1,6 @@
 [package]
 name = "magic-bill"
-version = "0.2.2"
+version = "0.2.3"
 description = "Magic Bill - Restaurant Management System"
 authors = ["you"]
 edition = "2021"
