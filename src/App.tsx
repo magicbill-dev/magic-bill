@@ -5,12 +5,12 @@ import { join } from "@tauri-apps/api/path";
 import { getVersion } from "@tauri-apps/api/app";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { 
-  LayoutDashboard, 
-  ReceiptText, 
-  UtensilsCrossed, 
-  Settings, 
-  TrendingUp, 
+import {
+  LayoutDashboard,
+  ReceiptText,
+  UtensilsCrossed,
+  Settings,
+  TrendingUp,
   Wallet,
   Users,
   Receipt,
@@ -20,7 +20,8 @@ import {
   RefreshCw,
   CheckCircle,
   XCircle,
-  Info
+  Info,
+  UserCircle
 } from "lucide-react";
 import MenuManagement from "./components/MenuManagement";
 import GeneralSettings from "./components/GeneralSettings";
@@ -41,10 +42,11 @@ function App() {
   const [db, setDb] = useState<Database | null>(null);
   const [loading, setLoading] = useState(true);
   const [updateStatus, setUpdateStatus] = useState<{ status: 'idle' | 'checking' | 'available' | 'downloading' | 'error' | 'not-available', progress: number, errorMsg?: string, version?: string }>({ status: 'idle', progress: 0 });
+  const [silentUpdateAvailable, setSilentUpdateAvailable] = useState(false);
   const [dbFolderPath, setDbFolderPath] = useState<string | null>(() => localStorage.getItem("dbFolderPath"));
   const [appVersion, setAppVersion] = useState<string>("");
 
-  // Fetch App Version
+  // Fetch App Version + silent update check on startup
   useEffect(() => {
     async function fetchVersion() {
       try {
@@ -55,6 +57,16 @@ function App() {
       }
     }
     fetchVersion();
+
+    async function silentUpdateCheck() {
+      try {
+        const update = await check();
+        if (update) setSilentUpdateAvailable(true);
+      } catch {
+        // silent — don't surface startup check errors
+      }
+    }
+    silentUpdateCheck();
   }, []);
 
   const checkForUpdates = async () => {
@@ -480,14 +492,14 @@ function App() {
 
   if (updateStatus.status !== 'idle') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--bg-light)', color: 'var(--text-primary)', padding: '2rem' }}>
-        {updateStatus.status === 'checking' && <RefreshCw size={64} style={{ color: 'var(--primary)', marginBottom: '1rem', animation: 'spin 2s linear infinite' }} />}
-        {updateStatus.status === 'downloading' && <DownloadCloud size={64} style={{ color: 'var(--primary)', marginBottom: '1rem', animation: 'bounce 2s infinite' }} />}
-        {updateStatus.status === 'available' && <CheckCircle size={64} style={{ color: 'var(--success)', marginBottom: '1rem' }} />}
-        {updateStatus.status === 'not-available' && <Info size={64} style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }} />}
-        {updateStatus.status === 'error' && <XCircle size={64} style={{ color: 'var(--danger)', marginBottom: '1rem' }} />}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--bg-light)', color: 'var(--text-primary)', padding: 'var(--space-8)' }}>
+        {updateStatus.status === 'checking' && <RefreshCw size={64} style={{ color: 'var(--primary)', marginBottom: 'var(--space-4)', animation: 'spin 2s linear infinite' }} />}
+        {updateStatus.status === 'downloading' && <DownloadCloud size={64} style={{ color: 'var(--primary)', marginBottom: 'var(--space-4)', animation: 'bounce 2s infinite' }} />}
+        {updateStatus.status === 'available' && <CheckCircle size={64} style={{ color: 'var(--success)', marginBottom: 'var(--space-4)' }} />}
+        {updateStatus.status === 'not-available' && <Info size={64} style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-4)' }} />}
+        {updateStatus.status === 'error' && <XCircle size={64} style={{ color: 'var(--danger)', marginBottom: 'var(--space-4)' }} />}
         
-        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem', textAlign: 'center' }}>
+        <h1 style={{ fontSize: 'var(--text-3xl)', marginBottom: '0.5rem', textAlign: 'center' }}>
           {updateStatus.status === 'checking' && 'Checking for updates...'}
           {updateStatus.status === 'downloading' && 'Downloading Update...'}
           {updateStatus.status === 'available' && `Update Available (v${updateStatus.version})`}
@@ -496,23 +508,23 @@ function App() {
         </h1>
 
         {updateStatus.status === 'downloading' && (
-          <div style={{ width: '300px', backgroundColor: 'var(--bg-white)', borderRadius: '0.5rem', overflow: 'hidden', height: '20px', marginTop: '1rem', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)' }}>
+          <div style={{ width: '300px', backgroundColor: 'var(--bg-white)', borderRadius: 'var(--radius-md)', overflow: 'hidden', height: '20px', marginTop: 'var(--space-4)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)' }}>
             <div style={{ width: `${updateStatus.progress}%`, backgroundColor: 'var(--primary)', height: '100%', transition: 'width 0.3s ease' }}></div>
           </div>
         )}
         {updateStatus.status === 'downloading' && <p style={{ marginTop: '0.5rem', fontWeight: 'bold' }}>{updateStatus.progress}%</p>}
 
         {updateStatus.status === 'error' && (
-          <p style={{ color: 'var(--danger)', marginTop: '1rem', maxWidth: '400px', textAlign: 'center' }}>
+          <p style={{ color: 'var(--danger)', marginTop: 'var(--space-4)', maxWidth: '400px', textAlign: 'center' }}>
             {updateStatus.errorMsg}
           </p>
         )}
 
-        <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+        <div style={{ display: 'flex', gap: 'var(--space-4)', marginTop: '2rem' }}>
           {updateStatus.status === 'available' && (
             <button 
               onClick={startUpdate}
-              style={{ padding: '0.75rem 1.5rem', fontSize: '1rem', backgroundColor: 'var(--primary)', color: 'var(--primary-fg)', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: 'bold' }}
+              style={{ padding: '0.75rem 1.5rem', fontSize: 'var(--text-base)', backgroundColor: 'var(--primary)', color: 'var(--primary-fg)', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontWeight: 'bold' }}
             >
               Download & Install
             </button>
@@ -520,7 +532,7 @@ function App() {
           {(updateStatus.status === 'available' || updateStatus.status === 'not-available' || updateStatus.status === 'error') && (
             <button 
               onClick={() => setUpdateStatus({ status: 'idle', progress: 0 })}
-              style={{ padding: '0.75rem 1.5rem', fontSize: '1rem', backgroundColor: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: 'bold' }}
+              style={{ padding: '0.75rem 1.5rem', fontSize: 'var(--text-base)', backgroundColor: 'transparent', color: 'var(--text-primary)', border: 'var(--border-thin) solid var(--border-color)', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontWeight: 'bold' }}
             >
               Close
             </button>
@@ -532,9 +544,9 @@ function App() {
 
   if (!dbFolderPath) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--bg-light)', color: 'var(--text-primary)', padding: '2rem' }}>
-        <FolderOpen size={64} style={{ color: 'var(--primary)', marginBottom: '1rem' }} />
-        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Welcome to Magic Bill</h1>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--bg-light)', color: 'var(--text-primary)', padding: 'var(--space-8)' }}>
+        <FolderOpen size={64} style={{ color: 'var(--primary)', marginBottom: 'var(--space-4)' }} />
+        <h1 style={{ fontSize: 'var(--text-3xl)', marginBottom: '0.5rem' }}>Welcome to Magic Bill</h1>
         <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', textAlign: 'center', maxWidth: '400px' }}>
           To get started, please select a folder where your database and all application data will be safely stored.
         </p>
@@ -542,15 +554,15 @@ function App() {
           onClick={handleSelectDbFolder}
           style={{
             padding: '1rem 2rem',
-            fontSize: '1.1rem',
+            fontSize: 'var(--text-lg)',
             backgroundColor: 'var(--primary)',
             color: 'var(--primary-fg)',
             border: 'none',
-            borderRadius: '0.5rem',
+            borderRadius: 'var(--radius-md)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem',
+            gap: 'var(--space-2)',
             fontWeight: 'bold',
             boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
           }}
@@ -566,17 +578,17 @@ function App() {
     <div className="app-container">
       {/* Sidebar */}
       <aside className="sidebar compact-sidebar">
-        <button 
-          className={`logo-area compact-logo ${activeTab === "Account" ? "active-logo" : ""}`}
+        <button
+          className={`account-nav-btn ${activeTab === "Account" ? "active" : ""}`}
           onClick={() => handleNavigate("Account")}
           title="Account"
-          style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '0.5rem 0', gap: '0.25rem' }}
         >
-          <img src="/magic_bill_logo.png" alt="Magic Bill Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>MAGIC BILL</span>
-            <span style={{ fontSize: '0.65rem', fontWeight: 500, color: 'var(--primary)', textTransform: 'uppercase' }}>Account</span>
+          <div className="account-nav-logo-wrap">
+            <img src="/magic_bill_logo.png" alt="Magic Bill Logo" />
+            <span className="account-nav-badge"><UserCircle size={13} /></span>
           </div>
+          <span className="account-nav-brand">MAGIC BILL</span>
+          <span className="account-nav-label">ACCOUNT</span>
         </button>
         
         <nav className="nav-menu">
@@ -593,34 +605,26 @@ function App() {
           ))}
         </nav>
 
-        <div className="user-profile compact-profile" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingBottom: '0' }}>
-          <button 
+        <div className="sidebar-footer">
+          <button
             className={`nav-item ${isSettingsPanelOpen ? "active" : ""}`}
             onClick={() => setIsSettingsPanelOpen(!isSettingsPanelOpen)}
             title="Settings"
-            style={{ marginBottom: '8px' }}
           >
             <Settings size={24} className="nav-icon" />
             <span className="nav-label">Settings</span>
           </button>
-          
-          <div style={{ width: '40%', height: '1px', backgroundColor: 'var(--border-color, rgba(255,255,255,0.1))', margin: '4px 0 8px 0' }} />
 
-          {appVersion && <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 'bold', marginBottom: '2px' }}>v{appVersion}</span>}
-          <button 
+          <div className="sidebar-footer-divider" />
+
+          {appVersion && <span className="sidebar-version">v{appVersion}</span>}
+
+          <button
+            className={`sidebar-update-btn ${silentUpdateAvailable ? 'has-update' : ''}`}
             onClick={checkForUpdates}
-            style={{ 
-              background: 'none', 
-              border: 'none', 
-              color: 'var(--primary)', 
-              fontSize: '0.65rem', 
-              cursor: 'pointer', 
-              textDecoration: 'underline',
-              padding: '2px',
-              marginBottom: '4px'
-            }}
-            title="Check for updates"
+            title={silentUpdateAvailable ? "New update available — click to install" : "Check for updates"}
           >
+            {silentUpdateAvailable && <span className="update-notification-dot" />}
             Check for Updates
           </button>
         </div>
@@ -712,15 +716,15 @@ function App() {
       {/* Unsaved Changes Popup */}
       {showUnsavedPopup && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ backgroundColor: 'var(--bg-white)', padding: '2rem', borderRadius: '0.5rem', maxWidth: '400px', width: '100%', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
+          <div style={{ backgroundColor: 'var(--bg-white)', padding: 'var(--space-8)', borderRadius: 'var(--radius-md)', maxWidth: '400px', width: '100%', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
             <h3 style={{ marginTop: 0, color: 'var(--text-primary)' }}>Unsaved Changes</h3>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', lineHeight: '1.5' }}>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-6)', lineHeight: '1.5' }}>
               You have unsaved changes in the current settings tab. Do you want to save them before leaving?
             </p>
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
               <button 
                 onClick={() => { setShowUnsavedPopup(false); setPendingTabNav(null); }}
-                style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', backgroundColor: 'transparent', color: 'var(--text-primary)', borderRadius: '0.25rem', cursor: 'pointer' }}
+                style={{ padding: 'var(--space-2) var(--space-4)', border: 'var(--border-thin) solid var(--border-color)', backgroundColor: 'transparent', color: 'var(--text-primary)', borderRadius: 'var(--radius-xs)', cursor: 'pointer' }}
               >
                 Cancel
               </button>
@@ -736,7 +740,7 @@ function App() {
                     setPendingTabNav(null);
                   }
                 }}
-                style={{ padding: '0.5rem 1rem', border: 'none', backgroundColor: 'var(--danger)', color: 'white', borderRadius: '0.25rem', cursor: 'pointer' }}
+                style={{ padding: 'var(--space-2) var(--space-4)', border: 'none', backgroundColor: 'var(--danger)', color: 'white', borderRadius: 'var(--radius-xs)', cursor: 'pointer' }}
               >
                 Discard
               </button>
@@ -759,7 +763,7 @@ function App() {
                     }
                   }
                 }}
-                style={{ padding: '0.5rem 1rem', border: 'none', backgroundColor: 'var(--primary)', color: 'var(--primary-fg)', borderRadius: '0.25rem', cursor: 'pointer', fontWeight: 600 }}
+                style={{ padding: 'var(--space-2) var(--space-4)', border: 'none', backgroundColor: 'var(--primary)', color: 'var(--primary-fg)', borderRadius: 'var(--radius-xs)', cursor: 'pointer', fontWeight: 'var(--font-semibold)' }}
               >
                 Save
               </button>

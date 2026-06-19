@@ -264,6 +264,14 @@ export default function Billing({ db }: BillingProps) {
     fetchInitialData();
   }, [db]);
 
+  // Scroll highlighted suggestion into view on keyboard navigation
+  useEffect(() => {
+    if (selectedSuggestionIndex < 0 || !suggestionListRef.current) return;
+    const list = suggestionListRef.current;
+    const item = list.children[selectedSuggestionIndex] as HTMLElement | undefined;
+    item?.scrollIntoView({ block: "nearest" });
+  }, [selectedSuggestionIndex]);
+
   // Fetch Processing Orders
   const fetchProcessingOrders = async () => {
     if (!db) return;
@@ -732,6 +740,7 @@ export default function Billing({ db }: BillingProps) {
       };
 
       let hasError = false;
+      let printErrorMsg = "";
 
       // Loop through each printer's jobs
       for (const [pName, categoriesMap] of printJobs.entries()) {
@@ -752,6 +761,7 @@ export default function Billing({ db }: BillingProps) {
                           await invokeWithTimeout("print_receipt_text", { printerName: pName, text: fallbackText });
                       } catch (e2) {
                           hasError = true;
+                          printErrorMsg = e2 instanceof Error ? e2.message : String(e2);
                       }
                   }
               }
@@ -768,13 +778,14 @@ export default function Billing({ db }: BillingProps) {
                       await invokeWithTimeout("print_receipt_text", { printerName: pName, text });
                   } catch (e2) {
                       hasError = true;
+                      printErrorMsg = e2 instanceof Error ? e2.message : String(e2);
                   }
               }
           }
       }
 
       if (hasError) {
-          setToastMessage("Order Saved (Some KOTs failed to print)");
+          setToastMessage(`Order Saved, but KOT PRINT FAILED: ${printErrorMsg || "printer not reachable"}`);
       } else {
           setToastMessage("KOT(s) Printed & Order Saved!");
       }
@@ -1354,11 +1365,13 @@ export default function Billing({ db }: BillingProps) {
                   await invokeWithTimeout("print_receipt_text", { printerName, text: fallbackText });
                   setToastMessage(`Checkout successful! Bill printed (Fallback).`);
               } catch(e2) {
-                  setToastMessage(`Checkout successful! Total: Rs. ${total.toFixed(2)} (Print Failed)`);
+                  const msg = e2 instanceof Error ? e2.message : String(e2);
+                  console.error("Bill print failed completely:", e2);
+                  setToastMessage(`Checkout saved, but PRINT FAILED on "${printerName}": ${msg}`);
               }
           }
       } else {
-          setToastMessage(`Checkout successful! Total: Rs. ${total.toFixed(2)}`);
+          setToastMessage(`Checkout saved — but NO PRINTER is selected. Open Printer Settings → choose a Default Printer, then Save.`);
       }
 
       startNewOrder();
@@ -1500,15 +1513,7 @@ export default function Billing({ db }: BillingProps) {
 
   return (
     <div className="billing-page" style={{ position: 'relative' }}>
-      <style>{`
-        @keyframes text-blink-animation {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-        .text-blink {
-          animation: text-blink-animation 1.5s ease-in-out infinite;
-        }
-      `}</style>
+      
       {toastMessage && (
         <div style={{
           position: 'fixed',
@@ -1516,11 +1521,11 @@ export default function Billing({ db }: BillingProps) {
           right: '20px',
           backgroundColor: 'var(--primary)',
           color: 'var(--primary-fg)',
-          padding: '1rem',
-          borderRadius: '0.5rem',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)',
+          padding: 'var(--space-4)',
+          borderRadius: 'var(--radius-md)',
+          boxShadow: 'var(--shadow-md)',
           zIndex: 1000,
-          fontWeight: 600
+          fontWeight: 'var(--font-semibold)'
         }}>
           {toastMessage}
         </div>
@@ -1570,9 +1575,9 @@ export default function Billing({ db }: BillingProps) {
       </div>
 
       {/* Processing Orders Sidebar */}
-      <div className="processing-orders-sidebar" style={{ width: '416px', minWidth: '416px', flexShrink: 0, borderLeft: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', padding: '1rem', gap: '1rem', background: 'var(--bg-light)' }}>
+      <div className="processing-orders-sidebar" style={{ width: '416px', minWidth: '416px', flexShrink: 0, border: 'var(--border-thin) solid var(--border-color)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', padding: 'var(--space-4)', gap: 'var(--space-4)', background: 'var(--bg-white)' }}>
         <div className="processing-orders-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '1.1rem', color: 'var(--text-primary)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontWeight: 'var(--font-semibold)', fontSize: 'var(--text-lg)', color: 'var(--text-primary)' }}>
             <ListTodo size={20} /> Processing Orders
           </div>
           <button 
@@ -1581,8 +1586,8 @@ export default function Billing({ db }: BillingProps) {
               display: 'flex', alignItems: 'center', gap: '0.4rem', 
               background: 'var(--primary)', color: 'var(--primary-fg)', 
               border: 'none', borderRadius: '2rem', 
-              padding: '0.4rem 0.8rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700,
-              transition: 'transform 0.1s ease-in-out, box-shadow 0.1s', boxShadow: '0 2px 5px rgba(0, 0, 0, 0.3)' 
+              padding: '0.4rem 0.8rem', cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: 'var(--font-bold)',
+              transition: 'transform 0.1s ease-in-out, box-shadow 0.1s', boxShadow: 'var(--shadow-sm)' 
             }}
             title="Press Esc to start a new order"
             onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
@@ -1590,7 +1595,7 @@ export default function Billing({ db }: BillingProps) {
             onMouseDown={e => e.currentTarget.style.transform = 'translateY(1px)'}
             onMouseUp={e => e.currentTarget.style.transform = 'translateY(0)'}
           >
-            <Plus size={16} /> New <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 500 }}>(Esc)</span>
+            <Plus size={16} /> New <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 'var(--font-medium)' }}>(Esc)</span>
           </button>
         </div>
         
@@ -1599,8 +1604,8 @@ export default function Billing({ db }: BillingProps) {
           gap: '0.4rem', 
           padding: '1rem 0',
           margin: '0',
-          borderTop: '1px solid var(--border-color)',
-          borderBottom: '1px solid var(--border-color)'
+          borderTop: 'var(--border-thin) solid var(--border-color)',
+          borderBottom: 'var(--border-thin) solid var(--border-color)'
         }}>
           {["Self Service", "Table", "Parcel"].map(type => (
             <button
@@ -1615,7 +1620,7 @@ export default function Billing({ db }: BillingProps) {
 
         <div className="processing-orders-list" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.25rem' }}>
           {processingOrders.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+            <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-primary)', opacity: 0.8, fontSize: 'var(--text-base)' }}>
               No active orders.
             </div>
           ) : (
@@ -1630,12 +1635,12 @@ export default function Billing({ db }: BillingProps) {
                   {order.order_type === 'Table' && order.table_number ? (
                       <span style={{
                           background: 'var(--bg-light)',
-                          color: 'var(--warning, #f59e0b)',
-                          border: '1px solid var(--warning, #f59e0b)',
+                          color: 'var(--warning)',
+                          border: 'var(--border-thin) solid var(--warning)',
                           padding: '0.1rem 0.4rem',
-                          borderRadius: '0.25rem',
-                          fontSize: '0.85rem',
-                          fontWeight: 700,
+                          borderRadius: 'var(--radius-xs)',
+                          fontSize: 'var(--text-sm)',
+                          fontWeight: 'var(--font-bold)',
                           display: 'inline-block'
                       }}>
                           <span className="text-blink">{order.table_number.replace(/([A-Za-z]+)/g, '-$1')}</span>
@@ -1648,7 +1653,7 @@ export default function Billing({ db }: BillingProps) {
                   <div className="processing-order-details">
                       {order.order_type}
                       {order.order_type === 'Table' && order.table_number && (
-                          <span style={{ marginLeft: '0.5rem', fontWeight: 600 }}>
+                          <span style={{ marginLeft: '0.5rem', fontWeight: 'var(--font-semibold)' }}>
                               ₹{order.total.toFixed(2)}
                           </span>
                       )}
@@ -1705,7 +1710,7 @@ export default function Billing({ db }: BillingProps) {
         <div className="popup-overlay">
           <div className="qty-popup" onKeyDown={handleTablePopupKeyDown} tabIndex={0} style={{ outline: 'none' }}>
             <h3>Enter Table Number</h3>
-            <div className="qty-popup-controls" style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+            <div className="qty-popup-controls" style={{ marginTop: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
               <input
                 ref={tableInputRef}
                 type="text"
@@ -1738,15 +1743,15 @@ export default function Billing({ db }: BillingProps) {
             ref={alphabetPopupRef}
             style={{ outline: 'none', maxWidth: '350px' }}
           >
-            <h3 style={{ marginBottom: '1rem' }}>Table Occupied</h3>
-            <p style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+            <h3 style={{ marginBottom: 'var(--space-4)' }}>Table Occupied</h3>
+            <p style={{ marginBottom: 'var(--space-4)', fontSize: 'var(--text-base)', color: 'var(--text-secondary)' }}>
               Select a sub-table identifier for table {tableNumber}
             </p>
             <div style={{ 
               display: 'grid', 
               gridTemplateColumns: 'repeat(4, 1fr)', 
-              gap: '0.5rem', 
-              marginBottom: '1.5rem' 
+              gap: 'var(--space-2)', 
+              marginBottom: 'var(--space-6)' 
             }}>
               {ALPHABETS.map((alpha, index) => {
                 const isOccupied = processingOrders.some(
@@ -1760,10 +1765,10 @@ export default function Billing({ db }: BillingProps) {
                     style={{
                       padding: '0.75rem',
                       textAlign: 'center',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '0.5rem',
+                      border: 'var(--border-thin) solid var(--border-color)',
+                      borderRadius: 'var(--radius-md)',
                       cursor: isOccupied ? 'not-allowed' : 'pointer',
-                      background: isOccupied ? 'rgba(0,0,0,0.05)' : (index === selectedAlphabetIndex ? 'var(--primary)' : 'var(--bg-white)'),
+                      background: isOccupied ? 'var(--bg-inset)' : (index === selectedAlphabetIndex ? 'var(--primary)' : 'var(--bg-white)'),
                       color: isOccupied ? 'var(--text-secondary)' : (index === selectedAlphabetIndex ? 'var(--primary-fg)' : 'var(--text-primary)'),
                       fontWeight: index === selectedAlphabetIndex && !isOccupied ? 'bold' : 'normal',
                       boxShadow: index === selectedAlphabetIndex && !isOccupied ? '0 0 0 2px var(--primary) inset' : 'none',
@@ -1813,7 +1818,7 @@ export default function Billing({ db }: BillingProps) {
         <div className="cart-section" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div className="cart-table-container" style={{ flex: 1, overflowY: 'auto' }}>
             {cart.length > 0 ? (
-              <table className="billing-table" style={{ fontSize: '0.95rem' }}>
+              <table className="billing-table" style={{ fontSize: 'var(--text-base)' }}>
                 <thead>
                   <tr>
                     <th style={{ padding: '0.5rem' }}>Item</th>
@@ -1859,14 +1864,14 @@ export default function Billing({ db }: BillingProps) {
                           style={{
                              width: '40px',
                              padding: '0.2rem',
-                             fontSize: '0.95rem',
+                             fontSize: 'var(--text-base)',
                              textAlign: 'center',
-                             border: '1px solid var(--border-color)',
-                             borderRadius: '0.25rem'
+                             border: 'var(--border-thin) solid var(--border-color)',
+                             borderRadius: 'var(--radius-xs)'
                           }}
                         />
                       </td>
-                      <td className="text-right" style={{ padding: '0.5rem', fontWeight: 600 }}>₹{(item.price * item.quantity).toFixed(2)}</td>
+                      <td className="text-right" style={{ padding: '0.5rem', fontWeight: 'var(--font-semibold)' }}>₹{(item.price * item.quantity).toFixed(2)}</td>
                       <td className="text-center" style={{ padding: '0.5rem' }}>
                         <button className="remove-btn" onClick={() => removeFromCart(item.id)} style={{ padding: '0.25rem' }}>
                           <Trash2 size={14} />
@@ -1877,7 +1882,7 @@ export default function Billing({ db }: BillingProps) {
                 </tbody>
               </table>
             ) : (
-              <div className="empty-cart" style={{ padding: '1rem', minHeight: '100px' }}>
+              <div className="empty-cart" style={{ padding: 'var(--space-4)', minHeight: '100px' }}>
                 No items added yet.
               </div>
             )}
@@ -1929,7 +1934,7 @@ export default function Billing({ db }: BillingProps) {
                   <span>UPI</span>
                 </button>
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
                 <button
                   onClick={() => { setBillingType("Credit"); setPaymentMode("Cash"); }}
                   className={`modern-tab-btn ${billingType === "Credit" ? 'active' : ''}`}
@@ -1946,8 +1951,8 @@ export default function Billing({ db }: BillingProps) {
                       style={{
                         flex: 1,
                         padding: '0.5rem',
-                        borderRadius: '0.5rem',
-                        border: '1px solid var(--border-color)',
+                        borderRadius: 'var(--radius-md)',
+                        border: 'var(--border-thin) solid var(--border-color)',
                         background: 'var(--bg-white)',
                         color: 'var(--text-primary)'
                       }}
@@ -1964,7 +1969,7 @@ export default function Billing({ db }: BillingProps) {
                         background: 'var(--primary)',
                         color: 'var(--primary-fg)',
                         border: 'none',
-                        borderRadius: '0.5rem',
+                        borderRadius: 'var(--radius-md)',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
@@ -1998,7 +2003,7 @@ export default function Billing({ db }: BillingProps) {
           </div>
         </div>
 
-        <div className="action-buttons" style={{ display: 'flex', gap: '0.5rem' }}>
+        <div className="action-buttons" style={{ display: 'flex', gap: 'var(--space-2)' }}>
           <button className="btn-checkout" onClick={handlePrintKOT} disabled={isProcessing} style={{ flex: 1, opacity: isProcessing ? 0.6 : 1, cursor: isProcessing ? 'not-allowed' : 'pointer' }}>
             {printerSettings?.disable_kot ? (
               <><CheckCircle size={16} style={{ marginRight: '0.25rem' }} /> {isProcessing ? 'Processing...' : 'Save Order'}</>
@@ -2015,14 +2020,14 @@ export default function Billing({ db }: BillingProps) {
         <div className="popup-overlay">
           <div className="qty-popup">
             <h3>Add Customer</h3>
-            <div className="qty-popup-controls" style={{ marginTop: '1rem', gap: '1rem' }}>
+            <div className="qty-popup-controls" style={{ marginTop: 'var(--space-4)', gap: 'var(--space-4)' }}>
               <input
                 type="text"
                 value={newCustomerName}
                 onChange={(e) => setNewCustomerName(e.target.value)}
                 placeholder="Name"
                 className="qty-popup-input"
-                style={{ width: '100%', padding: '0.5rem', textAlign: 'left', fontSize: '1rem', fontWeight: 'normal' }}
+                style={{ width: '100%', padding: '0.5rem', textAlign: 'left', fontSize: 'var(--text-base)', fontWeight: 'normal' }}
               />
               <input
                 type="text"
@@ -2033,7 +2038,7 @@ export default function Billing({ db }: BillingProps) {
                 }}
                 placeholder="Phone Number (10 digits)"
                 className="qty-popup-input"
-                style={{ width: '100%', padding: '0.5rem', textAlign: 'left', fontSize: '1rem', fontWeight: 'normal' }}
+                style={{ width: '100%', padding: '0.5rem', textAlign: 'left', fontSize: 'var(--text-base)', fontWeight: 'normal' }}
               />
             </div>
             <button className="btn-add-to-cart" onClick={handleAddCustomer}>
@@ -2054,20 +2059,20 @@ export default function Billing({ db }: BillingProps) {
             ref={kotConfirmRef}
             style={{ outline: 'none', minWidth: '300px' }}
           >
-            <h3 style={{ marginBottom: '1rem', color: 'var(--text-primary)', textAlign: 'center' }}>Print KOT?</h3>
-            <p style={{ textAlign: 'center', marginBottom: '1.5rem', color: 'var(--text-secondary)' }}>Are you sure you want to print the KOT?</p>
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+            <h3 style={{ marginBottom: 'var(--space-4)', color: 'var(--text-primary)', textAlign: 'center' }}>Print KOT?</h3>
+            <p style={{ textAlign: 'center', marginBottom: 'var(--space-6)', color: 'var(--text-secondary)' }}>Are you sure you want to print the KOT?</p>
+            <div style={{ display: 'flex', gap: 'var(--space-4)', justifyContent: 'center' }}>
               <button 
                 className="btn-checkout" 
                 onClick={() => { setIsKotConfirmPopupOpen(false); executePrintKOT(); }}
-                style={{ flex: 1, padding: '0.75rem', fontSize: '1rem' }}
+                style={{ flex: 1, padding: '0.75rem', fontSize: 'var(--text-base)' }}
               >
                 Yes (Enter)
               </button>
               <button 
                 className="btn-print" 
                 onClick={(e) => { e.stopPropagation(); setIsKotConfirmPopupOpen(false); executePrintKOT(undefined, true); }}
-                style={{ flex: 1, padding: '0.75rem', fontSize: '1rem', background: 'var(--bg-light)', color: 'var(--text-primary)' }}
+                style={{ flex: 1, padding: '0.75rem', fontSize: 'var(--text-base)', background: 'var(--bg-light)', color: 'var(--text-primary)' }}
               >
                 No (Esc)
               </button>
@@ -2087,20 +2092,20 @@ export default function Billing({ db }: BillingProps) {
             ref={billConfirmRef}
             style={{ outline: 'none', minWidth: '300px' }}
           >
-            <h3 style={{ marginBottom: '1rem', color: 'var(--text-primary)', textAlign: 'center' }}>Print Bill?</h3>
-            <p style={{ textAlign: 'center', marginBottom: '1.5rem', color: 'var(--text-secondary)' }}>Are you sure you want to print the final Bill?</p>
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+            <h3 style={{ marginBottom: 'var(--space-4)', color: 'var(--text-primary)', textAlign: 'center' }}>Print Bill?</h3>
+            <p style={{ textAlign: 'center', marginBottom: 'var(--space-6)', color: 'var(--text-secondary)' }}>Are you sure you want to print the final Bill?</p>
+            <div style={{ display: 'flex', gap: 'var(--space-4)', justifyContent: 'center' }}>
               <button 
                 className="btn-checkout" 
                 onClick={() => { setIsBillConfirmPopupOpen(false); executeCheckout(); }}
-                style={{ flex: 1, padding: '0.75rem', fontSize: '1rem' }}
+                style={{ flex: 1, padding: '0.75rem', fontSize: 'var(--text-base)' }}
               >
                 Yes (Enter)
               </button>
               <button 
                 className="btn-print" 
                 onClick={(e) => { e.stopPropagation(); setIsBillConfirmPopupOpen(false); executeCheckout(true); }}
-                style={{ flex: 1, padding: '0.75rem', fontSize: '1rem', background: 'var(--bg-light)', color: 'var(--text-primary)' }}
+                style={{ flex: 1, padding: '0.75rem', fontSize: 'var(--text-base)', background: 'var(--bg-light)', color: 'var(--text-primary)' }}
               >
                 No (Esc)
               </button>
