@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import Database from "@tauri-apps/plugin-sql";
 import { invoke } from "@tauri-apps/api/core";
+import { Printer, Hash } from "lucide-react";
 
 interface PrinterConfig {
   printer_mode: string;
@@ -263,320 +264,233 @@ export default function PrinterSettings({ db, activeTab, setUnsavedChanges, setT
     await doSave();
   };
 
-  return (
-    <div className="settings-page-wrapper">
-      {toastMessage && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          backgroundColor: 'var(--primary)',
-          color: 'var(--primary-fg)',
-          padding: '1rem',
-          borderRadius: '0.5rem',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)',
-          zIndex: 1000,
-          fontWeight: 600
-        }}>
-          {toastMessage}
-        </div>
-      )}
+  // Sends a small ESC/POS test slip to the selected printer using the exact
+  // same path the Billing page uses (print_receipt_raw), and surfaces the
+  // real hardware error so connection problems can be diagnosed.
+  const [testing, setTesting] = useState(false);
+  const handleTestPrint = async () => {
+    if (!settings.default_printer) {
+      setToastMessage("Select a default printer first (and Save).");
+      return;
+    }
+    setTesting(true);
+    try {
+      const enc = new TextEncoder();
+      const body =
+        "\n" +
+        "    *** TEST PRINT ***\n" +
+        "         Magic Bill\n\n" +
+        `  Printer: ${settings.default_printer}\n` +
+        `  ${new Date().toLocaleString()}\n` +
+        "  Connection OK!\n\n\n\n";
+      // ESC @ (init) ... text ... GS V A 16 (partial cut)
+      const data = [0x1b, 0x40, ...Array.from(enc.encode(body)), 0x1d, 0x56, 0x41, 0x10];
+      await invoke("print_receipt_raw", { printerName: settings.default_printer, data });
+      setToastMessage(`Test sent to "${settings.default_printer}" successfully.`);
+    } catch (err) {
+      setToastMessage(`Test print FAILED: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setTesting(false);
+    }
+  };
 
-      <div className="settings-page-header">
-        <h2 className="settings-page-title">Printer Settings</h2>
-        <p className="settings-page-subtitle">Manage printing preferences and connections</p>
+  // Re-scan connected printers on demand (in case the device was just plugged in).
+  const refreshPrinters = async () => {
+    try {
+      const list = await invoke<string[]>("get_printers");
+      setPrinters(list);
+      setToastMessage(`Found ${list.length} printer(s).`);
+    } catch (err) {
+      setToastMessage(`Could not read printers: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
+  return (
+    <div className="sx-page">
+      {toastMessage && <div className="toast-notification">{toastMessage}</div>}
+
+      <div className="sx-head">
+        <h1>Printer Settings</h1>
+        <p>Manage printing preferences and connections</p>
       </div>
 
       {loading ? (
-        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-          Loading printer settings...
+        <div style={{ padding: 'var(--space-8)', textAlign: 'center', color: 'var(--text-secondary)' }}>
+          Loading printer settings…
         </div>
       ) : (
-        <form onSubmit={handleSave} style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-          
-          {/* Main Printer Settings Card */}
-          <div className="modern-panel" style={{ flex: '1 1 500px' }}>
-            <div className="modern-panel-header">Printer Configuration</div>
+        <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              
-              <div className="modern-form-group">
-                <label className="modern-label">Printer Mode</label>
-                <div style={{ display: 'flex', gap: '1.5rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                  <label className="modern-checkbox-label" style={{ fontWeight: 500 }}>
-                    <input
-                      type="radio"
-                      name="printer_mode"
-                      value="Single Printer"
-                      checked={settings.printer_mode === "Single Printer"}
-                      onChange={(e) => setSettings({ ...settings, printer_mode: e.target.value })}
-                    />
-                    Single Printer
+          {/* Printer Configuration */}
+          <div className="sx-group">
+            <div className="sx-group-head"><Printer size={14} /> Printer Configuration</div>
+
+            <div className="sx-field">
+              <label>Printer Mode</label>
+              <div className="sx-grid cols-2">
+                <label className="sx-check">
+                  <input type="radio" name="printer_mode" value="Single Printer" checked={settings.printer_mode === "Single Printer"} onChange={(e) => setSettings({ ...settings, printer_mode: e.target.value })} />
+                  Single Printer
+                </label>
+                <label className="sx-check">
+                  <input type="radio" name="printer_mode" value="Multiple Printers" checked={settings.printer_mode === "Multiple Printers"} onChange={(e) => setSettings({ ...settings, printer_mode: e.target.value })} />
+                  Multiple Printers (Category-wise)
+                </label>
+              </div>
+            </div>
+
+            {settings.printer_mode === "Single Printer" && (
+              <div className="sx-field">
+                <label>KOT Printing Style</label>
+                <div className="sx-grid cols-2">
+                  <label className="sx-check">
+                    <input type="radio" name="kot_printing_style" value="Single KOT" checked={settings.kot_printing_style === "Single KOT"} onChange={(e) => setSettings({ ...settings, kot_printing_style: e.target.value })} />
+                    Single KOT (All items in one ticket)
                   </label>
-                  <label className="modern-checkbox-label" style={{ fontWeight: 500 }}>
-                    <input
-                      type="radio"
-                      name="printer_mode"
-                      value="Multiple Printers"
-                      checked={settings.printer_mode === "Multiple Printers"}
-                      onChange={(e) => setSettings({ ...settings, printer_mode: e.target.value })}
-                    />
-                    Multiple Printers (Category-wise)
+                  <label className="sx-check">
+                    <input type="radio" name="kot_printing_style" value="Category-wise KOTs" checked={settings.kot_printing_style === "Category-wise KOTs"} onChange={(e) => setSettings({ ...settings, kot_printing_style: e.target.value })} />
+                    Category-wise KOTs (Separate per category)
                   </label>
                 </div>
               </div>
+            )}
 
-              {settings.printer_mode === "Single Printer" && (
-                <div className="modern-form-group" style={{ paddingTop: '1rem', borderTop: '1px dashed rgba(255,255,255,0.1)' }}>
-                  <label className="modern-label">KOT Printing Style</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <label className="modern-checkbox-label" style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)', fontWeight: 500 }}>
-                      <input
-                        type="radio"
-                        name="kot_printing_style"
-                        value="Single KOT"
-                        checked={settings.kot_printing_style === "Single KOT"}
-                        onChange={(e) => setSettings({ ...settings, kot_printing_style: e.target.value })}
-                      />
-                      Single KOT (All items in one ticket)
-                    </label>
-                    <label className="modern-checkbox-label" style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)', fontWeight: 500 }}>
-                      <input
-                        type="radio"
-                        name="kot_printing_style"
-                        value="Category-wise KOTs"
-                        checked={settings.kot_printing_style === "Category-wise KOTs"}
-                        onChange={(e) => setSettings({ ...settings, kot_printing_style: e.target.value })}
-                      />
-                      Category-wise KOTs (Separate tickets for each category)
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              <div className="modern-form-group">
-                <label className="modern-label">Default Printer (Bills & Unassigned KOTs)</label>
-                <select
-                  value={settings.default_printer}
-                  onChange={(e) => setSettings({ ...settings, default_printer: e.target.value })}
-                  className="modern-select"
-                >
+            <div className="sx-grid cols-3">
+              <div className="sx-field">
+                <label>Default Printer (Bills &amp; Unassigned KOTs)</label>
+                <select value={settings.default_printer} onChange={(e) => setSettings({ ...settings, default_printer: e.target.value })} className="sx-select">
                   <option value="">Select a printer</option>
                   {printers.map((printer, index) => (
                     <option key={index} value={printer}>{printer}</option>
                   ))}
                 </select>
-              </div>
-
-              {settings.printer_mode === "Multiple Printers" && (
-                <div className="modern-form-group" style={{ paddingTop: '1rem', borderTop: '1px dashed rgba(255,255,255,0.1)' }}>
-                  <label className="modern-label" style={{ color: 'var(--text-primary)' }}>Category Printer Mapping</label>
-                  {categories.length === 0 ? (
-                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '0.5rem' }}>No categories found. Please add categories first.</p>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                      {categories.map(cat => (
-                        <div key={cat.id} className="modern-form-group">
-                          <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{cat.name}</span>
-                          <select
-                            value={categoryPrinters[cat.id] || ""}
-                            onChange={(e) => setCategoryPrinters({ ...categoryPrinters, [cat.id]: e.target.value })}
-                            className="modern-select"
-                            style={{ padding: '0.5rem' }}
-                          >
-                            <option value="">Use Default</option>
-                            {printers.map((printer, index) => (
-                              <option key={index} value={printer}>{printer}</option>
-                            ))}
-                          </select>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', paddingTop: '1rem', borderTop: '1px dashed rgba(255,255,255,0.1)' }}>
-                <div className="modern-form-group" style={{ flex: 1 }}>
-                  <label className="modern-label">Paper Size</label>
-                  <select
-                    value={settings.paper_size}
-                    onChange={(e) => setSettings({ ...settings, paper_size: e.target.value })}
-                    className="modern-select"
-                  >
-                    <option value="2inch">58mm (2 inch)</option>
-                    <option value="3inch">80mm (3 inch)</option>
-                    <option value="4inch">100mm (4 inch)</option>
-                  </select>
-                </div>
-                
-                <div style={{ flex: 1, marginTop: '1.5rem' }}>
-                  <label className="modern-checkbox-label" style={{ padding: '0.85rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <input
-                      type="checkbox"
-                      checked={settings.print_bold}
-                      onChange={(e) => setSettings({ ...settings, print_bold: e.target.checked })}
-                    />
-                    Print Text Bold & Dark (ESC/POS)
-                  </label>
+                <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
+                  <button type="button" onClick={handleTestPrint} disabled={testing || !settings.default_printer} className="sx-btn-ghost" style={{ padding: '0.4rem 0.7rem' }}>
+                    <Printer size={14} /> {testing ? "Testing…" : "Test Print"}
+                  </button>
+                  <button type="button" onClick={refreshPrinters} className="sx-btn-ghost" style={{ padding: '0.4rem 0.7rem' }}>
+                    Refresh List
+                  </button>
                 </div>
               </div>
-
-              <div className="modern-form-group" style={{ paddingTop: '1rem', borderTop: '1px dashed rgba(255,255,255,0.1)' }}>
-                <label className="modern-label">Printing Flow & Confirmation</label>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label className="modern-checkbox-label" style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <input
-                      type="checkbox"
-                      checked={settings.kot_print_confirmation}
-                      onChange={(e) => setSettings({ ...settings, kot_print_confirmation: e.target.checked })}
-                    />
-                    Require Double Confirmation Before Printing KOT
-                    <span style={{ fontWeight: 'normal', color: 'var(--text-secondary)', fontSize: '0.75rem', marginLeft: 'auto' }}>(Helps save paper)</span>
-                  </label>
-
-                  <label className="modern-checkbox-label" style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <input
-                      type="checkbox"
-                      checked={settings.bill_print_confirmation}
-                      onChange={(e) => setSettings({ ...settings, bill_print_confirmation: e.target.checked })}
-                    />
-                    Require Double Confirmation Before Printing Bill
-                    <span style={{ fontWeight: 'normal', color: 'var(--text-secondary)', fontSize: '0.75rem', marginLeft: 'auto' }}>(Helps prevent accidental finalization)</span>
-                  </label>
-
-                  <label className="modern-checkbox-label" style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <input
-                      type="checkbox"
-                      checked={settings.disable_kot}
-                      onChange={(e) => setSettings({ ...settings, disable_kot: e.target.checked })}
-                    />
-                    Disable KOT Function Entirely
-                    <span style={{ fontWeight: 'normal', color: 'var(--text-secondary)', fontSize: '0.75rem', marginLeft: 'auto' }}>(Order goes directly to Processing)</span>
-                  </label>
-                </div>
+              <div className="sx-field">
+                <label>Paper Size</label>
+                <select value={settings.paper_size} onChange={(e) => setSettings({ ...settings, paper_size: e.target.value })} className="sx-select">
+                  <option value="2inch">58mm (2 inch)</option>
+                  <option value="3inch">80mm (3 inch)</option>
+                  <option value="4inch">100mm (4 inch)</option>
+                </select>
               </div>
+              <div className="sx-field">
+                <label>Print Options</label>
+                <label className="sx-check">
+                  <input type="checkbox" checked={settings.print_bold} onChange={(e) => setSettings({ ...settings, print_bold: e.target.checked })} />
+                  Bold &amp; Dark (ESC/POS)
+                </label>
+              </div>
+            </div>
 
-              <button 
-                type="submit" 
-                disabled={saving}
-                className="modern-btn-primary"
-                style={{ marginTop: '1rem' }}
-              >
-                {saving ? "Saving..." : "Save Printer Settings"}
-              </button>
+            {settings.printer_mode === "Multiple Printers" && (
+              <div className="sx-field">
+                <label>Category Printer Mapping</label>
+                {categories.length === 0 ? (
+                  <p className="settings-hint">No categories found. Please add categories first.</p>
+                ) : (
+                  <div className="sx-grid cols-3">
+                    {categories.map(cat => (
+                      <div key={cat.id} className="sx-field">
+                        <label style={{ textTransform: 'none' }}>{cat.name}</label>
+                        <select value={categoryPrinters[cat.id] || ""} onChange={(e) => setCategoryPrinters({ ...categoryPrinters, [cat.id]: e.target.value })} className="sx-select">
+                          <option value="">Use Default</option>
+                          {printers.map((printer, index) => (
+                            <option key={index} value={printer}>{printer}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="sx-field">
+              <label>Printing Flow &amp; Confirmation</label>
+              <div className="sx-grid cols-3">
+                <label className="sx-check">
+                  <input type="checkbox" checked={settings.kot_print_confirmation} onChange={(e) => setSettings({ ...settings, kot_print_confirmation: e.target.checked })} />
+                  Confirm before printing KOT
+                  <span className="sx-hint">Saves paper</span>
+                </label>
+                <label className="sx-check">
+                  <input type="checkbox" checked={settings.bill_print_confirmation} onChange={(e) => setSettings({ ...settings, bill_print_confirmation: e.target.checked })} />
+                  Confirm before printing Bill
+                  <span className="sx-hint">Prevents accidents</span>
+                </label>
+                <label className="sx-check">
+                  <input type="checkbox" checked={settings.disable_kot} onChange={(e) => setSettings({ ...settings, disable_kot: e.target.checked })} />
+                  Disable KOT entirely
+                  <span className="sx-hint">Direct to Processing</span>
+                </label>
+              </div>
             </div>
           </div>
 
-          {/* Numbering Rules Card */}
-          <div className="modern-panel" style={{ flex: '1 1 400px' }}>
-            <div className="modern-panel-header">Numbering Rules</div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-              
-              {/* Token Configuration */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <h4 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--primary)', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>Token Configuration</h4>
-                
-                <label className="modern-checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={settings.token_reset_daily}
-                    onChange={(e) => setSettings({ ...settings, token_reset_daily: e.target.checked })}
-                  />
-                  Reset Token Number Daily
-                </label>
-                
-                <div className="modern-grid-2">
-                    <div className="modern-form-group">
-                        <label className="modern-label" style={{textTransform: 'none'}}>Daily Starting Number</label>
-                        <input
-                            type="number"
-                            value={settings.token_starting_number}
-                            onChange={(e) => setSettings({ ...settings, token_starting_number: parseInt(e.target.value) || 0 })}
-                            className="modern-input"
-                        />
-                    </div>
-                    <div className="modern-form-group">
-                        <label className="modern-label" style={{textTransform: 'none'}}>Current Token Number</label>
-                        <input
-                            type="number"
-                            value={settings.token_current_number}
-                            onChange={(e) => setSettings({ ...settings, token_current_number: parseInt(e.target.value) || 0 })}
-                            className="modern-input"
-                        />
-                    </div>
-                </div>
-
-                <div className="modern-form-group">
-                  <label className="modern-label" style={{textTransform: 'none'}}>Token Print Size (on Bill & KOT)</label>
-                  <select
-                    value={settings.token_print_size}
-                    onChange={(e) => setSettings({ ...settings, token_print_size: e.target.value })}
-                    className="modern-select"
-                  >
-                    <option value="Normal">Normal</option>
-                    <option value="Large">Large</option>
-                    <option value="Extra Large">Extra Large (Huge)</option>
-                  </select>
-                </div>
+          {/* Token Numbering */}
+          <div className="sx-group">
+            <div className="sx-group-head"><Hash size={14} /> Token Numbering</div>
+            <label className="sx-check" style={{ alignSelf: 'flex-start' }}>
+              <input type="checkbox" checked={settings.token_reset_daily} onChange={(e) => setSettings({ ...settings, token_reset_daily: e.target.checked })} />
+              Reset Token Number Daily
+            </label>
+            <div className="sx-grid cols-3">
+              <div className="sx-field">
+                <label>Daily Starting Number</label>
+                <input type="number" value={settings.token_starting_number} onChange={(e) => setSettings({ ...settings, token_starting_number: parseInt(e.target.value) || 0 })} className="sx-input" />
               </div>
-
-              {/* Bill Configuration */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <h4 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--primary)', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>Bill Configuration</h4>
-                
-                <label className="modern-checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={settings.bill_reset_daily}
-                    onChange={(e) => setSettings({ ...settings, bill_reset_daily: e.target.checked })}
-                  />
-                  Reset Bill Number Daily
-                </label>
-
-                <div className="modern-form-group">
-                  <label className="modern-label" style={{textTransform: 'none'}}>Bill Prefix (e.g. BIR/ or #{'{'}YYYY{'}'}/)</label>
-                  <input
-                    type="text"
-                    value={settings.bill_prefix}
-                    onChange={(e) => setSettings({ ...settings, bill_prefix: e.target.value })}
-                    placeholder="Optional prefix"
-                    className="modern-input"
-                  />
-                </div>
-                
-                <div className="modern-grid-2">
-                    <div className="modern-form-group">
-                        <label className="modern-label" style={{textTransform: 'none'}}>Daily Starting Number</label>
-                        <input
-                            type="number"
-                            value={settings.bill_starting_number}
-                            onChange={(e) => setSettings({ ...settings, bill_starting_number: parseInt(e.target.value) || 0 })}
-                            className="modern-input"
-                        />
-                    </div>
-                    <div className="modern-form-group">
-                        <label className="modern-label" style={{textTransform: 'none'}}>Current Bill Number</label>
-                        <input
-                            type="number"
-                            value={settings.bill_current_number}
-                            onChange={(e) => setSettings({ ...settings, bill_current_number: parseInt(e.target.value) || 0 })}
-                            className="modern-input"
-                        />
-                    </div>
-                </div>
+              <div className="sx-field">
+                <label>Current Token Number</label>
+                <input type="number" value={settings.token_current_number} onChange={(e) => setSettings({ ...settings, token_current_number: parseInt(e.target.value) || 0 })} className="sx-input" />
               </div>
-              
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.5rem', border: '1px dashed rgba(255,255,255,0.1)' }}>
-                <strong style={{ display: 'block', marginBottom: '0.25rem' }}>Note on Daily Resets:</strong>
-                The application automatically resets these counters to your specified starting numbers on the first order of a new day.
+              <div className="sx-field">
+                <label>Token Print Size (Bill &amp; KOT)</label>
+                <select value={settings.token_print_size} onChange={(e) => setSettings({ ...settings, token_print_size: e.target.value })} className="sx-select">
+                  <option value="Normal">Normal</option>
+                  <option value="Large">Large</option>
+                  <option value="Extra Large">Extra Large (Huge)</option>
+                </select>
               </div>
-
             </div>
           </div>
 
+          {/* Bill Numbering */}
+          <div className="sx-group">
+            <div className="sx-group-head"><Hash size={14} /> Bill Numbering</div>
+            <label className="sx-check" style={{ alignSelf: 'flex-start' }}>
+              <input type="checkbox" checked={settings.bill_reset_daily} onChange={(e) => setSettings({ ...settings, bill_reset_daily: e.target.checked })} />
+              Reset Bill Number Daily
+            </label>
+            <div className="sx-grid cols-3">
+              <div className="sx-field">
+                <label>Bill Prefix</label>
+                <input type="text" value={settings.bill_prefix} onChange={(e) => setSettings({ ...settings, bill_prefix: e.target.value })} placeholder="e.g. BIR/ (optional)" className="sx-input" />
+              </div>
+              <div className="sx-field">
+                <label>Daily Starting Number</label>
+                <input type="number" value={settings.bill_starting_number} onChange={(e) => setSettings({ ...settings, bill_starting_number: parseInt(e.target.value) || 0 })} className="sx-input" />
+              </div>
+              <div className="sx-field">
+                <label>Current Bill Number</label>
+                <input type="number" value={settings.bill_current_number} onChange={(e) => setSettings({ ...settings, bill_current_number: parseInt(e.target.value) || 0 })} className="sx-input" />
+              </div>
+            </div>
+            <p className="settings-hint">Counters reset to the starting numbers on the first order of a new day.</p>
+          </div>
+
+          <div className="sx-actions">
+            <button type="submit" disabled={saving} className="sx-btn-primary">
+              {saving ? "Saving…" : "Save Printer Settings"}
+            </button>
+          </div>
         </form>
       )}
     </div>

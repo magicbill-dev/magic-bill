@@ -21,9 +21,9 @@ export default function Settings({ db }: SettingsProps) {
         className="settings-tabs" 
         style={{ 
           display: 'flex', 
-          gap: '1rem', 
-          borderBottom: '1px solid var(--border-color)', 
-          marginBottom: '1rem' 
+          gap: 'var(--space-4)', 
+          borderBottom: 'var(--border-thin) solid var(--border-color)', 
+          marginBottom: 'var(--space-4)' 
         }}
       >
         {tabs.map((tab) => (

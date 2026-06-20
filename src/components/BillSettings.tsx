@@ -412,436 +412,257 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
   }
 
   return (
-    <div className="settings-page-wrapper" style={{ flexDirection: 'row', alignItems: 'flex-start', overflow: 'hidden' }}>
-      {toastMessage && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          backgroundColor: 'var(--primary)',
-          color: 'var(--primary-fg)',
-          padding: '1rem',
-          borderRadius: '0.5rem',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)',
-          zIndex: 1000,
-          fontWeight: 600
-        }}>
-          {toastMessage}
-        </div>
-      )}
-      
-      {/* Configuration Panel */}
-      <div style={{ flex: '1.5', display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', paddingRight: '1rem', gap: '2rem' }}>
-        
-        <div className="settings-page-header">
-          <h2 className="settings-page-title">Bill Settings</h2>
-          <p className="settings-page-subtitle">Configure your receipt design and formatting</p>
+    <div style={{ height: '100%', display: 'flex', overflow: 'hidden' }}>
+      {toastMessage && <div className="toast-notification">{toastMessage}</div>}
+
+      {/* Configuration */}
+      <div className="sx-page" style={{ flex: '1.6', maxWidth: 'none', margin: 0 }}>
+        <div className="sx-head">
+          <h1>Bill Settings</h1>
+          <p>Configure your receipt design and formatting</p>
         </div>
 
-        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          
-          <div className="modern-panel">
-            <div className="modern-panel-header">
-              <Settings2 size={22} style={{ color: 'var(--primary)' }} /> Bill Configuration
-            </div>
+        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
 
-            <div className="modern-form-group">
-              <label className="modern-label" style={{textTransform: 'none'}}>Printer Size</label>
-              <select
-                value={billConfig.printer_size}
-                onChange={(e) => setBillConfig({ ...billConfig, printer_size: e.target.value })}
-                className="modern-select"
-              >
-                <option value="3inch">3 Inch (80mm) - Standard</option>
-                <option value="4inch">4 Inch (100mm)</option>
-                <option value="5inch">5 Inch (120mm)</option>
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-              <label className="modern-label" style={{ color: 'var(--text-primary)' }}>
-                 <Type size={16} /> Font & Typography Settings
-              </label>
-              
-              {/* Font Families */}
-              <div className="modern-grid-3">
-                <div className="modern-form-group">
-                   <label className="modern-label" style={{ textTransform: 'none', fontSize: '0.8rem' }}>Header Font Family</label>
-                   <select value={billConfig.header_font_family} onChange={(e) => setBillConfig({ ...billConfig, header_font_family: e.target.value })} className="modern-select" style={{ padding: '0.6rem' }}>
-                     {fontFamilies.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                   </select>
-                </div>
-                <div className="modern-form-group">
-                   <label className="modern-label" style={{ textTransform: 'none', fontSize: '0.8rem' }}>Body Font Family</label>
-                   <select value={billConfig.body_font_family} onChange={(e) => setBillConfig({ ...billConfig, body_font_family: e.target.value })} className="modern-select" style={{ padding: '0.6rem' }}>
-                     {fontFamilies.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                   </select>
-                </div>
-                <div className="modern-form-group">
-                   <label className="modern-label" style={{ textTransform: 'none', fontSize: '0.8rem' }}>Footer Font Family</label>
-                   <select value={billConfig.footer_font_family} onChange={(e) => setBillConfig({ ...billConfig, footer_font_family: e.target.value })} className="modern-select" style={{ padding: '0.6rem' }}>
-                     {fontFamilies.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                   </select>
-                </div>
+          {/* Receipt Format */}
+          <div className="sx-group">
+            <div className="sx-group-head"><Settings2 size={14} /> Receipt Format</div>
+            <div className="sx-grid">
+              <div className="sx-field">
+                <label>Printer Size</label>
+                <select value={billConfig.printer_size} onChange={(e) => setBillConfig({ ...billConfig, printer_size: e.target.value })} className="sx-select">
+                  <option value="3inch">3 Inch (80mm) — Standard</option>
+                  <option value="4inch">4 Inch (100mm)</option>
+                  <option value="5inch">5 Inch (120mm)</option>
+                </select>
               </div>
-
-              {/* Granular Font Sizes */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.75rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                 <div className="modern-form-group">
-                   <label className="modern-label" style={{ textTransform: 'none', fontSize: '0.75rem' }}>Hotel Name Size</label>
-                   <select value={billConfig.store_name_size} onChange={(e) => setBillConfig({ ...billConfig, store_name_size: e.target.value })} className="modern-select" style={{ padding: '0.4rem', fontSize: '0.85rem' }}>{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
-                 </div>
-                 <div className="modern-form-group">
-                   <label className="modern-label" style={{ textTransform: 'none', fontSize: '0.75rem' }}>Address/Meta Size</label>
-                   <select value={billConfig.address_size} onChange={(e) => setBillConfig({ ...billConfig, address_size: e.target.value })} className="modern-select" style={{ padding: '0.4rem', fontSize: '0.85rem' }}>{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
-                 </div>
-                 <div className="modern-form-group">
-                   <label className="modern-label" style={{ textTransform: 'none', fontSize: '0.75rem' }}>Table Items Size</label>
-                   <select value={billConfig.table_font_size} onChange={(e) => setBillConfig({ ...billConfig, table_font_size: e.target.value })} className="modern-select" style={{ padding: '0.4rem', fontSize: '0.85rem' }}>{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
-                 </div>
-                 <div className="modern-form-group">
-                   <label className="modern-label" style={{ textTransform: 'none', fontSize: '0.75rem' }}>Totals Size</label>
-                   <select value={billConfig.total_font_size} onChange={(e) => setBillConfig({ ...billConfig, total_font_size: e.target.value })} className="modern-select" style={{ padding: '0.4rem', fontSize: '0.85rem' }}>{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
-                 </div>
-                 <div className="modern-form-group">
-                   <label className="modern-label" style={{ textTransform: 'none', fontSize: '0.75rem' }}>Footer Size</label>
-                   <select value={billConfig.footer_font_size} onChange={(e) => setBillConfig({ ...billConfig, footer_font_size: e.target.value })} className="modern-select" style={{ padding: '0.4rem', fontSize: '0.85rem' }}>{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
-                 </div>
-              </div>
-              
-              <div className="modern-form-group" style={{ width: '250px' }}>
-                <label className="modern-label" style={{ textTransform: 'none' }}>Row Height (Table Item Spacing)</label>
-                <select value={billConfig.row_height} onChange={(e) => setBillConfig({ ...billConfig, row_height: e.target.value })} className="modern-select">
+              <div className="sx-field">
+                <label>Row Height (Item Spacing)</label>
+                <select value={billConfig.row_height} onChange={(e) => setBillConfig({ ...billConfig, row_height: e.target.value })} className="sx-select">
                   <option value="2px 0">Compact</option>
                   <option value="4px 0">Standard</option>
                   <option value="8px 0">Relaxed</option>
                 </select>
               </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-              <label className="modern-label" style={{ color: 'var(--text-primary)' }}>
-                <Scissors size={16} /> Granular Line Separator Controls (Dashed Lines)
-              </label>
-              <div className="modern-grid-2" style={{ background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={billConfig.sep_header} onChange={(e) => setBillConfig({...billConfig, sep_header: e.target.checked})} />
-                  Below Store Header (Address)
-                </label>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={billConfig.sep_meta} onChange={(e) => setBillConfig({...billConfig, sep_meta: e.target.checked})} />
-                  Below Meta (Date/Time/Order)
-                </label>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={billConfig.sep_token} onChange={(e) => setBillConfig({...billConfig, sep_token: e.target.checked})} />
-                  Below Token Number
-                </label>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={billConfig.sep_table_header} onChange={(e) => setBillConfig({...billConfig, sep_table_header: e.target.checked})} />
-                  Below Table Column Names
-                </label>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={billConfig.sep_table_body} onChange={(e) => setBillConfig({...billConfig, sep_table_body: e.target.checked})} />
-                  Below Item List
-                </label>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={billConfig.sep_subtotals} onChange={(e) => setBillConfig({...billConfig, sep_subtotals: e.target.checked})} />
-                  Below Subtotals & GST
-                </label>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={billConfig.sep_grand_total} onChange={(e) => setBillConfig({...billConfig, sep_grand_total: e.target.checked})} />
-                  Below Grand Total
-                </label>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-              <label className="modern-label" style={{ color: 'var(--text-primary)' }}>
-                Content Visibility Toggles
-              </label>
-              <div className="modern-grid-3" style={{ background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={billConfig.show_token} onChange={(e) => setBillConfig({...billConfig, show_token: e.target.checked})} />
-                  <span style={{ fontWeight: 'bold' }}>Show Token Number</span>
-                </label>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={billConfig.show_gst} onChange={(e) => setBillConfig({...billConfig, show_gst: e.target.checked})} />
-                  Show GSTIN Header
-                </label>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={billConfig.show_fssai} onChange={(e) => setBillConfig({...billConfig, show_fssai: e.target.checked})} />
-                  Show FSSAI Header
-                </label>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={billConfig.show_address} onChange={(e) => setBillConfig({...billConfig, show_address: e.target.checked})} />
-                  Show Address
-                </label>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={billConfig.show_phone} onChange={(e) => setBillConfig({...billConfig, show_phone: e.target.checked})} />
-                  Show Phone
-                </label>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={billConfig.show_cashier_name} onChange={(e) => setBillConfig({...billConfig, show_cashier_name: e.target.checked})} />
-                  Show Cashier
-                </label>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-              <label className="modern-label" style={{ color: 'var(--text-primary)' }}>
-                UPI QR Code Printing Settings
-              </label>
-              <div className="modern-grid-3" style={{ background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <label className="modern-checkbox-label">
-                  <input 
-                    type="radio" 
-                    name="qr_print_type" 
-                    checked={billConfig.dynamic_upi_qr} 
-                    onChange={() => setBillConfig({...billConfig, dynamic_upi_qr: true, static_upi_qr: false, no_qr_print: false})} 
-                  />
-                  <span style={{ fontWeight: 'bold' }}>Dynamic UPI QR</span>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '1.5rem', marginTop: '0.2rem', textTransform: 'none' }}>Amount included</div>
-                </label>
-                <label className="modern-checkbox-label">
-                  <input 
-                    type="radio" 
-                    name="qr_print_type" 
-                    checked={billConfig.static_upi_qr} 
-                    onChange={() => setBillConfig({...billConfig, dynamic_upi_qr: false, static_upi_qr: true, no_qr_print: false})} 
-                  />
-                  <span style={{ fontWeight: 'bold' }}>Static UPI QR</span>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '1.5rem', marginTop: '0.2rem', textTransform: 'none' }}>Directly to UPI ID</div>
-                </label>
-                <label className="modern-checkbox-label">
-                  <input 
-                    type="radio" 
-                    name="qr_print_type" 
-                    checked={billConfig.no_qr_print} 
-                    onChange={() => setBillConfig({...billConfig, dynamic_upi_qr: false, static_upi_qr: false, no_qr_print: true})} 
-                  />
-                  <span style={{ fontWeight: 'bold' }}>No QR Print</span>
-                </label>
-              </div>
-            </div>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-              <label className="modern-label" style={{ color: 'var(--text-primary)' }}>
-                GST Calculation Settings
-              </label>
-              <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={billConfig.gst_enabled} onChange={(e) => setBillConfig({...billConfig, gst_enabled: e.target.checked})} />
-                  Enable GST
-                </label>
-                
-                {billConfig.gst_enabled && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Type:</span>
-                      <select
-                        value={billConfig.gst_type}
-                        onChange={(e) => setBillConfig({ ...billConfig, gst_type: e.target.value })}
-                        className="modern-select"
-                        style={{ padding: '0.5rem 1rem' }}
-                      >
-                        <option value="Exclusive">Exclusive (Added to total)</option>
-                        <option value="Inclusive">Inclusive (Included in price)</option>
-                      </select>
-                    </div>
-                    
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 600 }}>%:</span>
-                      <select
-                        value={billConfig.gst_percentage}
-                        onChange={(e) => setBillConfig({ ...billConfig, gst_percentage: Number(e.target.value) })}
-                        className="modern-select"
-                        style={{ padding: '0.5rem 1rem' }}
-                      >
-                        <option value={5}>5%</option>
-                        <option value={12}>12%</option>
-                        <option value={18}>18%</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-              <label className="modern-label" style={{ color: 'var(--text-primary)' }}>
-                Logo Settings
-              </label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <span style={{ fontSize: '0.9rem', width: '80px', color: 'var(--text-secondary)', fontWeight: 600 }}>Position:</span>
-                  <select
-                    value={billConfig.logo_position}
-                    onChange={(e) => setBillConfig({ ...billConfig, logo_position: e.target.value })}
-                    className="modern-select"
-                    style={{ flex: 1 }}
-                  >
-                    <option value="none">None</option>
-                    <option value="top">Top</option>
-                  </select>
-                </div>
-
-                {billConfig.logo_position !== 'none' && (
-                  <>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                      <span style={{ fontSize: '0.9rem', width: '80px', color: 'var(--text-secondary)', fontWeight: 600 }}>Image:</span>
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        onChange={handleLogoUpload} 
-                        style={{ fontSize: '0.9rem', flex: 1, color: 'var(--text-primary)' }} 
-                      />
-                      {billConfig.logo_base64 && (
-                        <button 
-                          type="button" 
-                          onClick={() => setBillConfig({...billConfig, logo_base64: ''})} 
-                          className="modern-btn-primary"
-                          style={{ backgroundColor: 'transparent', border: '1px solid var(--danger)', color: 'var(--danger)', padding: '0.5rem 1rem', boxShadow: 'none' }}
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                      <span style={{ fontSize: '0.9rem', width: '80px', color: 'var(--text-secondary)', fontWeight: 600 }}>Size (%):</span>
-                      <input
-                        type="range"
-                        min={10} max={100} step={5}
-                        value={billConfig.logo_size || 50}
-                        onChange={(e) => setBillConfig({ ...billConfig, logo_size: Number(e.target.value) })}
-                        style={{ flex: 1, accentColor: 'var(--primary)' }}
-                      />
-                      <span style={{ fontSize: '0.9rem', width: '40px', color: 'var(--text-primary)', fontWeight: 600 }}>{billConfig.logo_size || 50}%</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="modern-form-group" style={{ paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-              <label className="modern-label">Footer Message</label>
-              <textarea
-                value={billConfig.footer_message}
-                onChange={(e) => setBillConfig({ ...billConfig, footer_message: e.target.value })}
-                placeholder="e.g. Thank you! Visit again."
-                rows={2}
-                className="modern-input"
-                style={{ resize: 'vertical' }}
-              />
             </div>
           </div>
 
-          {/* KOT SETTINGS */}
-          <div className="modern-panel">
-            <div className="modern-panel-header">
-              <Settings2 size={22} style={{ color: 'var(--primary)' }} /> KOT Configuration
+          {/* Receipt Fonts & Sizes */}
+          <div className="sx-group">
+            <div className="sx-group-head"><Type size={14} /> Receipt Fonts &amp; Sizes</div>
+            <div className="sx-grid cols-3">
+              <div className="sx-field">
+                <label>Header Font</label>
+                <select value={billConfig.header_font_family} onChange={(e) => setBillConfig({ ...billConfig, header_font_family: e.target.value })} className="sx-select">
+                  {fontFamilies.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                </select>
+              </div>
+              <div className="sx-field">
+                <label>Body Font</label>
+                <select value={billConfig.body_font_family} onChange={(e) => setBillConfig({ ...billConfig, body_font_family: e.target.value })} className="sx-select">
+                  {fontFamilies.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                </select>
+              </div>
+              <div className="sx-field">
+                <label>Footer Font</label>
+                <select value={billConfig.footer_font_family} onChange={(e) => setBillConfig({ ...billConfig, footer_font_family: e.target.value })} className="sx-select">
+                  {fontFamilies.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                </select>
+              </div>
             </div>
+            <div className="sx-grid">
+              <div className="sx-field">
+                <label>Hotel Name Size</label>
+                <select value={billConfig.store_name_size} onChange={(e) => setBillConfig({ ...billConfig, store_name_size: e.target.value })} className="sx-select">{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
+              </div>
+              <div className="sx-field">
+                <label>Address / Meta Size</label>
+                <select value={billConfig.address_size} onChange={(e) => setBillConfig({ ...billConfig, address_size: e.target.value })} className="sx-select">{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
+              </div>
+              <div className="sx-field">
+                <label>Table Items Size</label>
+                <select value={billConfig.table_font_size} onChange={(e) => setBillConfig({ ...billConfig, table_font_size: e.target.value })} className="sx-select">{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
+              </div>
+              <div className="sx-field">
+                <label>Totals Size</label>
+                <select value={billConfig.total_font_size} onChange={(e) => setBillConfig({ ...billConfig, total_font_size: e.target.value })} className="sx-select">{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
+              </div>
+              <div className="sx-field">
+                <label>Footer Size</label>
+                <select value={billConfig.footer_font_size} onChange={(e) => setBillConfig({ ...billConfig, footer_font_size: e.target.value })} className="sx-select">{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
+              </div>
+            </div>
+          </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <label className="modern-label" style={{ color: 'var(--text-primary)' }}>
-                 <Type size={16} /> Font & Typography Settings (KOT)
+          {/* Line Separators */}
+          <div className="sx-group">
+            <div className="sx-group-head"><Scissors size={14} /> Receipt Line Separators</div>
+            <div className="sx-grid cols-3">
+              <label className="sx-check"><input type="checkbox" checked={billConfig.sep_header} onChange={(e) => setBillConfig({...billConfig, sep_header: e.target.checked})} /> Below Store Header</label>
+              <label className="sx-check"><input type="checkbox" checked={billConfig.sep_meta} onChange={(e) => setBillConfig({...billConfig, sep_meta: e.target.checked})} /> Below Meta (Date/Time)</label>
+              <label className="sx-check"><input type="checkbox" checked={billConfig.sep_token} onChange={(e) => setBillConfig({...billConfig, sep_token: e.target.checked})} /> Below Token Number</label>
+              <label className="sx-check"><input type="checkbox" checked={billConfig.sep_table_header} onChange={(e) => setBillConfig({...billConfig, sep_table_header: e.target.checked})} /> Below Column Names</label>
+              <label className="sx-check"><input type="checkbox" checked={billConfig.sep_table_body} onChange={(e) => setBillConfig({...billConfig, sep_table_body: e.target.checked})} /> Below Item List</label>
+              <label className="sx-check"><input type="checkbox" checked={billConfig.sep_subtotals} onChange={(e) => setBillConfig({...billConfig, sep_subtotals: e.target.checked})} /> Below Subtotals &amp; GST</label>
+              <label className="sx-check"><input type="checkbox" checked={billConfig.sep_grand_total} onChange={(e) => setBillConfig({...billConfig, sep_grand_total: e.target.checked})} /> Below Grand Total</label>
+            </div>
+          </div>
+
+          {/* Content Visibility */}
+          <div className="sx-group">
+            <div className="sx-group-head"><Eye size={14} /> Receipt Content Visibility</div>
+            <div className="sx-grid cols-3">
+              <label className="sx-check"><input type="checkbox" checked={billConfig.show_token} onChange={(e) => setBillConfig({...billConfig, show_token: e.target.checked})} /> Show Token Number</label>
+              <label className="sx-check"><input type="checkbox" checked={billConfig.show_gst} onChange={(e) => setBillConfig({...billConfig, show_gst: e.target.checked})} /> Show GSTIN Header</label>
+              <label className="sx-check"><input type="checkbox" checked={billConfig.show_fssai} onChange={(e) => setBillConfig({...billConfig, show_fssai: e.target.checked})} /> Show FSSAI Header</label>
+              <label className="sx-check"><input type="checkbox" checked={billConfig.show_address} onChange={(e) => setBillConfig({...billConfig, show_address: e.target.checked})} /> Show Address</label>
+              <label className="sx-check"><input type="checkbox" checked={billConfig.show_phone} onChange={(e) => setBillConfig({...billConfig, show_phone: e.target.checked})} /> Show Phone</label>
+              <label className="sx-check"><input type="checkbox" checked={billConfig.show_cashier_name} onChange={(e) => setBillConfig({...billConfig, show_cashier_name: e.target.checked})} /> Show Cashier</label>
+            </div>
+          </div>
+
+          {/* UPI QR */}
+          <div className="sx-group">
+            <div className="sx-group-head"><QrCode size={14} /> UPI QR Printing</div>
+            <div className="sx-grid cols-3">
+              <label className="sx-check">
+                <input type="radio" name="qr_print_type" checked={billConfig.dynamic_upi_qr} onChange={() => setBillConfig({...billConfig, dynamic_upi_qr: true, static_upi_qr: false, no_qr_print: false})} />
+                Dynamic UPI QR
+                <span className="sx-hint">Amount included</span>
               </label>
-              
-              <div className="modern-grid-2">
-                <div className="modern-form-group">
-                   <label className="modern-label" style={{ textTransform: 'none', fontSize: '0.8rem' }}>Header Font Family</label>
-                   <select value={kotConfig.header_font_family} onChange={(e) => setKotConfig({ ...kotConfig, header_font_family: e.target.value })} className="modern-select" style={{ padding: '0.6rem' }}>
-                     {fontFamilies.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                   </select>
+              <label className="sx-check">
+                <input type="radio" name="qr_print_type" checked={billConfig.static_upi_qr} onChange={() => setBillConfig({...billConfig, dynamic_upi_qr: false, static_upi_qr: true, no_qr_print: false})} />
+                Static UPI QR
+                <span className="sx-hint">Direct to UPI ID</span>
+              </label>
+              <label className="sx-check">
+                <input type="radio" name="qr_print_type" checked={billConfig.no_qr_print} onChange={() => setBillConfig({...billConfig, dynamic_upi_qr: false, static_upi_qr: false, no_qr_print: true})} />
+                No QR Print
+              </label>
+            </div>
+          </div>
+
+          {/* GST */}
+          <div className="sx-group">
+            <div className="sx-group-head">GST Calculation</div>
+            <label className="sx-check" style={{ alignSelf: 'flex-start' }}>
+              <input type="checkbox" checked={billConfig.gst_enabled} onChange={(e) => setBillConfig({...billConfig, gst_enabled: e.target.checked})} /> Enable GST
+            </label>
+            {billConfig.gst_enabled && (
+              <div className="sx-grid cols-3">
+                <div className="sx-field">
+                  <label>GST Type</label>
+                  <select value={billConfig.gst_type} onChange={(e) => setBillConfig({ ...billConfig, gst_type: e.target.value })} className="sx-select">
+                    <option value="Exclusive">Exclusive (Added to total)</option>
+                    <option value="Inclusive">Inclusive (Included in price)</option>
+                  </select>
                 </div>
-                <div className="modern-form-group">
-                   <label className="modern-label" style={{ textTransform: 'none', fontSize: '0.8rem' }}>Body Font Family</label>
-                   <select value={kotConfig.body_font_family} onChange={(e) => setKotConfig({ ...kotConfig, body_font_family: e.target.value })} className="modern-select" style={{ padding: '0.6rem' }}>
-                     {fontFamilies.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                   </select>
+                <div className="sx-field">
+                  <label>GST %</label>
+                  <select value={billConfig.gst_percentage} onChange={(e) => setBillConfig({ ...billConfig, gst_percentage: Number(e.target.value) })} className="sx-select">
+                    <option value={5}>5%</option>
+                    <option value={12}>12%</option>
+                    <option value={18}>18%</option>
+                  </select>
                 </div>
               </div>
+            )}
+          </div>
 
-              <div className="modern-grid-2" style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                 <div className="modern-form-group">
-                   <label className="modern-label" style={{ textTransform: 'none', fontSize: '0.75rem' }}>Header Size (KOT Title)</label>
-                   <select value={kotConfig.header_font_size} onChange={(e) => setKotConfig({ ...kotConfig, header_font_size: e.target.value })} className="modern-select" style={{ padding: '0.4rem', fontSize: '0.85rem' }}>{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
-                 </div>
-                 <div className="modern-form-group">
-                   <label className="modern-label" style={{ textTransform: 'none', fontSize: '0.75rem' }}>Table Items Size</label>
-                   <select value={kotConfig.table_font_size} onChange={(e) => setKotConfig({ ...kotConfig, table_font_size: e.target.value })} className="modern-select" style={{ padding: '0.4rem', fontSize: '0.85rem' }}>{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
-                 </div>
+          {/* Logo */}
+          <div className="sx-group">
+            <div className="sx-group-head">Logo</div>
+            <div className="sx-grid cols-3">
+              <div className="sx-field">
+                <label>Position</label>
+                <select value={billConfig.logo_position} onChange={(e) => setBillConfig({ ...billConfig, logo_position: e.target.value })} className="sx-select">
+                  <option value="none">None</option>
+                  <option value="top">Top</option>
+                </select>
               </div>
+              {billConfig.logo_position !== 'none' && (
+                <>
+                  <div className="sx-field">
+                    <label>Logo Image</label>
+                    <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+                      <input type="file" accept="image/*" onChange={handleLogoUpload} style={{ fontSize: 'var(--text-sm)', color: 'var(--text-primary)', flex: 1, minWidth: 0 }} />
+                      {billConfig.logo_base64 && (
+                        <button type="button" onClick={() => setBillConfig({...billConfig, logo_base64: ''})} className="sx-btn-danger" style={{ padding: '0.4rem 0.65rem', flexShrink: 0 }}>Remove</button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="sx-field">
+                    <label>Size — {billConfig.logo_size || 50}%</label>
+                    <input type="range" min={10} max={100} step={5} value={billConfig.logo_size || 50} onChange={(e) => setBillConfig({ ...billConfig, logo_size: Number(e.target.value) })} style={{ accentColor: 'var(--primary)', width: '100%' }} />
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
 
-              <div className="modern-form-group" style={{ width: '250px' }}>
-                <label className="modern-label" style={{ textTransform: 'none' }}>Row Height (KOT Item Spacing)</label>
-                <select
-                  value={kotConfig.row_height}
-                  onChange={(e) => setKotConfig({ ...kotConfig, row_height: e.target.value })}
-                  className="modern-select"
-                >
+          {/* Footer */}
+          <div className="sx-group">
+            <div className="sx-group-head">Footer Message</div>
+            <div className="sx-field">
+              <textarea value={billConfig.footer_message} onChange={(e) => setBillConfig({ ...billConfig, footer_message: e.target.value })} placeholder="e.g. Thank you! Visit again." rows={2} className="sx-textarea" />
+            </div>
+          </div>
+
+          {/* KOT Fonts */}
+          <div className="sx-group">
+            <div className="sx-group-head"><Settings2 size={14} /> KOT — Fonts &amp; Sizes</div>
+            <div className="sx-grid cols-3">
+              <div className="sx-field">
+                <label>Header Font</label>
+                <select value={kotConfig.header_font_family} onChange={(e) => setKotConfig({ ...kotConfig, header_font_family: e.target.value })} className="sx-select">{fontFamilies.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}</select>
+              </div>
+              <div className="sx-field">
+                <label>Body Font</label>
+                <select value={kotConfig.body_font_family} onChange={(e) => setKotConfig({ ...kotConfig, body_font_family: e.target.value })} className="sx-select">{fontFamilies.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}</select>
+              </div>
+              <div className="sx-field">
+                <label>Row Height</label>
+                <select value={kotConfig.row_height} onChange={(e) => setKotConfig({ ...kotConfig, row_height: e.target.value })} className="sx-select">
                   <option value="2px 0">Compact</option>
                   <option value="4px 0">Standard</option>
                   <option value="8px 0">Relaxed</option>
                 </select>
               </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-              <label className="modern-label" style={{ color: 'var(--text-primary)' }}>
-                 <Scissors size={16} /> Granular Line Separator Controls (KOT)
-              </label>
-              <div className="modern-grid-2" style={{ background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={kotConfig.sep_token} onChange={(e) => setKotConfig({...kotConfig, sep_token: e.target.checked})} />
-                  Below Token Number
-                </label>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={kotConfig.sep_header} onChange={(e) => setKotConfig({...kotConfig, sep_header: e.target.checked})} />
-                  Below KOT Title
-                </label>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={kotConfig.sep_meta} onChange={(e) => setKotConfig({...kotConfig, sep_meta: e.target.checked})} />
-                  Below Meta (Date/Table)
-                </label>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={kotConfig.sep_table_header} onChange={(e) => setKotConfig({...kotConfig, sep_table_header: e.target.checked})} />
-                  Below Table Column Names
-                </label>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={kotConfig.sep_table_body} onChange={(e) => setKotConfig({...kotConfig, sep_table_body: e.target.checked})} />
-                  Below Item List
-                </label>
+              <div className="sx-field">
+                <label>Header Size (KOT Title)</label>
+                <select value={kotConfig.header_font_size} onChange={(e) => setKotConfig({ ...kotConfig, header_font_size: e.target.value })} className="sx-select">{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
+              </div>
+              <div className="sx-field">
+                <label>Table Items Size</label>
+                <select value={kotConfig.table_font_size} onChange={(e) => setKotConfig({ ...kotConfig, table_font_size: e.target.value })} className="sx-select">{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
               </div>
             </div>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-              <label className="modern-label" style={{ color: 'var(--text-primary)' }}>
-                Visibility Toggles (KOT)
-              </label>
-              <div className="modern-grid-2" style={{ background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <label className="modern-checkbox-label">
-                  <input type="checkbox" checked={kotConfig.show_token} onChange={(e) => setKotConfig({...kotConfig, show_token: e.target.checked})} />
-                  <span style={{ fontWeight: 'bold' }}>Show Token Number</span>
-                </label>
-              </div>
-            </div>
+          </div>
 
-            <button 
-              type="submit" 
-              disabled={saving}
-              className="modern-btn-primary"
-              style={{ marginTop: 'auto' }}
-            >
-              <Save size={18} />
-              {saving ? "Saving..." : "Save Settings"}
+          {/* KOT Separators + Visibility */}
+          <div className="sx-group">
+            <div className="sx-group-head"><Scissors size={14} /> KOT — Line Separators</div>
+            <div className="sx-grid cols-3">
+              <label className="sx-check"><input type="checkbox" checked={kotConfig.sep_token} onChange={(e) => setKotConfig({...kotConfig, sep_token: e.target.checked})} /> Below Token Number</label>
+              <label className="sx-check"><input type="checkbox" checked={kotConfig.sep_header} onChange={(e) => setKotConfig({...kotConfig, sep_header: e.target.checked})} /> Below KOT Title</label>
+              <label className="sx-check"><input type="checkbox" checked={kotConfig.sep_meta} onChange={(e) => setKotConfig({...kotConfig, sep_meta: e.target.checked})} /> Below Meta (Date/Table)</label>
+              <label className="sx-check"><input type="checkbox" checked={kotConfig.sep_table_header} onChange={(e) => setKotConfig({...kotConfig, sep_table_header: e.target.checked})} /> Below Column Names</label>
+              <label className="sx-check"><input type="checkbox" checked={kotConfig.sep_table_body} onChange={(e) => setKotConfig({...kotConfig, sep_table_body: e.target.checked})} /> Below Item List</label>
+              <label className="sx-check"><input type="checkbox" checked={kotConfig.show_token} onChange={(e) => setKotConfig({...kotConfig, show_token: e.target.checked})} /> Show Token Number</label>
+            </div>
+          </div>
+
+          <div className="sx-actions">
+            <button type="submit" disabled={saving} className="sx-btn-primary">
+              <Save size={16} />
+              {saving ? "Saving…" : "Save Settings"}
             </button>
           </div>
         </form>
       </div>
 
       {/* Preview Panel */}
-      <div style={{ flex: '0.7', display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', overflowY: 'auto', paddingRight: '0.5rem', borderLeft: '1px solid rgba(255,255,255,0.05)' }}>
+      <div style={{ flex: '0.7', display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', overflowY: 'auto', paddingRight: '0.5rem', borderLeft: 'var(--border-thin) solid var(--border-subtle)' }}>
         
         <div 
           className="bill-preview" 

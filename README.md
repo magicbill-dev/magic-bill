@@ -1,5 +1,6 @@
 # Magic Bill - Restaurant Management System
 
+
 A lightweight, fast desktop application for restaurant management, built with **Tauri (Rust)** and **React**.
 
 ## 🚀 Features

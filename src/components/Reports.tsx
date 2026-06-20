@@ -832,64 +832,37 @@ export default function Reports({ db }: ReportsProps) {
 
   if (isPlanExpired) {
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: 'var(--bg-dark, #0f172a)', color: 'white', padding: '2rem', borderRadius: '8px' }}>
-            <style>{`
-              @keyframes pulseRed {
-                 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-                 70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
-                 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-              }
-              .upgrade-btn {
-                 display: inline-flex;
-                 align-items: center;
-                 justify-content: center;
-                 background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-                 color: white;
-                 font-weight: 600;
-                 font-size: 1.1rem;
-                 padding: 0.875rem 2rem;
-                 border-radius: 0.75rem;
-                 text-decoration: none;
-                 transition: all 0.2s ease;
-                 box-shadow: 0 4px 15px -3px rgba(239, 68, 68, 0.5);
-                 border: 1px solid rgba(255,255,255,0.1);
-                 animation: pulseRed 2s infinite;
-              }
-              .upgrade-btn:hover {
-                 transform: translateY(-2px);
-                 box-shadow: 0 8px 25px -5px rgba(239, 68, 68, 0.6);
-                 filter: brightness(1.1);
-              }
-            `}</style>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', padding: 'var(--space-8)', borderRadius: 'var(--radius-md)' }}>
+            
             <div style={{ 
-                background: 'rgba(255,255,255,0.02)', 
-                border: '1px solid rgba(255,255,255,0.05)', 
+                background: 'var(--bg-inset)', 
+                border: 'var(--border-thin) solid var(--border-subtle)', 
                 padding: '3rem', 
-                borderRadius: '1.5rem', 
+                borderRadius: 'var(--radius-2xl)', 
                 display: 'flex', 
                 flexDirection: 'column', 
                 alignItems: 'center',
                 maxWidth: '500px',
                 textAlign: 'center',
-                boxShadow: '0 20px 40px -10px rgba(0,0,0,0.5)'
+                boxShadow: 'var(--shadow-xl)'
             }}>
                 <div style={{ 
                     width: '80px', height: '80px', 
                     borderRadius: '50%', 
-                    background: 'rgba(239, 68, 68, 0.1)', 
+                    background: 'var(--danger-subtle)', 
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    marginBottom: '1.5rem',
-                    border: '1px solid rgba(239, 68, 68, 0.2)'
+                    marginBottom: 'var(--space-6)',
+                    border: 'var(--border-thin) solid var(--danger-subtle)'
                 }}>
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                         <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                     </svg>
                 </div>
-                <h2 style={{ fontSize: '2rem', margin: '0 0 1rem 0', color: '#f8fafc', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                <h2 style={{ fontSize: 'var(--text-3xl)', margin: '0 0 1rem 0', color: 'var(--text-primary)', fontWeight: 'var(--font-bold)', letterSpacing: '-0.02em' }}>
                     You don't have an active plan
                 </h2>
-                <p style={{ color: '#94a3b8', margin: '0 0 2.5rem 0', fontSize: '1rem', lineHeight: '1.6' }}>
+                <p style={{ color: 'var(--text-secondary)', margin: '0 0 2.5rem 0', fontSize: 'var(--text-base)', lineHeight: '1.6' }}>
                     Your subscription has expired or hasn't been activated. Upgrade your plan to restore access to the Dashboard, Reports, and all premium features.
                 </p>
                 <a href="https://magicbill.in" target="_blank" rel="noopener noreferrer" className="upgrade-btn">
@@ -901,11 +874,11 @@ export default function Reports({ db }: ReportsProps) {
   }
 
   return (
-    <div className="reports-page" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', height: '100%', overflowY: 'auto', background: 'var(--bg-light)', position: 'relative' }}>
+    <div className="reports-page" style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: '1.25rem', height: '100%', overflowY: 'auto', background: 'var(--bg-light)', position: 'relative' }}>
       {toastMessage && (
         <div style={{
           position: 'fixed', top: '20px', right: '20px', backgroundColor: 'var(--primary)', color: 'var(--primary-fg)',
-          padding: '0.75rem 1.25rem', borderRadius: '0.5rem', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)', zIndex: 2000, fontWeight: 600, fontSize: '0.875rem'
+          padding: '0.75rem 1.25rem', borderRadius: 'var(--radius-md)', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)', zIndex: 2000, fontWeight: 'var(--font-semibold)', fontSize: '0.875rem'
         }}>
           {toastMessage}
         </div>
@@ -925,12 +898,12 @@ export default function Reports({ db }: ReportsProps) {
                 setSelectedCustomer(null);
             }}
             style={{
-              display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.25rem', borderRadius: '0.5rem',
+              display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: '0.6rem 1.25rem', borderRadius: 'var(--radius-md)',
               background: activeMainTab === tab.id ? 'var(--primary)' : 'var(--bg-light)',
               color: activeMainTab === tab.id ? 'var(--primary-fg)' : 'var(--text-primary)',
               border: activeMainTab === tab.id ? 'none' : '1px solid var(--border-color)', 
-              cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', 
-              transition: 'all 0.2s ease',
+              cursor: 'pointer', fontWeight: 'var(--font-semibold)', fontSize: 'var(--text-base)', 
+              transition: 'all var(--transition-base)',
               boxShadow: activeMainTab === tab.id ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' : 'none'
             }}
           >
@@ -940,11 +913,11 @@ export default function Reports({ db }: ReportsProps) {
       </div>
 
       {/* Dynamic Header & Controls */}
-      <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1.25rem', borderRadius: '0.75rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+      <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1.25rem', borderRadius: 'var(--radius-lg)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
           
           {/* Left Side Controls: Selection Buttons */}
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', background: 'var(--bg-light)', padding: '0.35rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', background: 'var(--bg-light)', padding: '0.35rem', borderRadius: 'var(--radius-md)', border: 'var(--border-thin) solid var(--border-color)' }}>
               {activeMainTab === "Sales Overview" && [
                   { id: "Sales Summary", icon: TrendingUp },
                   { id: "Item Sales", icon: Package },
@@ -953,12 +926,12 @@ export default function Reports({ db }: ReportsProps) {
                   key={tab.id}
                   onClick={() => setActiveReport(tab.id)}
                   style={{
-                      display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', borderRadius: '0.375rem',
+                      display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: 'var(--space-2) var(--space-4)', borderRadius: '0.375rem',
                       background: activeReport === tab.id ? 'var(--primary)' : 'transparent',
                       color: activeReport === tab.id ? 'var(--primary-fg)' : 'var(--text-secondary)',
                       border: 'none',
                       cursor: 'pointer', fontWeight: activeReport === tab.id ? 600 : 500, fontSize: '0.875rem',
-                      transition: 'all 0.2s ease',
+                      transition: 'all var(--transition-base)',
                       boxShadow: activeReport === tab.id ? '0 1px 3px rgba(0,0,0,0.2)' : 'none'
                   }}
                   >
@@ -966,12 +939,12 @@ export default function Reports({ db }: ReportsProps) {
                   </button>
               ))}
               {activeMainTab !== "Sales Overview" && (
-                  <h3 style={{ margin: '0 0.5rem', fontSize: '1.2rem', color: 'var(--text-primary)', fontWeight: 600 }}>{activeMainTab}</h3>
+                  <h3 style={{ margin: '0 0.5rem', fontSize: '1.2rem', color: 'var(--text-primary)', fontWeight: 'var(--font-semibold)' }}>{activeMainTab}</h3>
               )}
           </div>
 
           {/* Right Side Controls: Date Picker & Export */}
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center', flexWrap: 'wrap' }}>
             {(activeMainTab === "Sales Overview" || activeMainTab === "Recent Bills") && (
               <div className="date-range-picker">
                 <div className="date-input-wrapper" onClick={(e) => { const i = e.currentTarget.querySelector('input'); if(i) i.showPicker(); }}>
@@ -999,9 +972,9 @@ export default function Reports({ db }: ReportsProps) {
             <button 
               onClick={handlePrintCurrentReport}
               style={{ 
-                display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.25rem', borderRadius: '0.5rem', 
-                background: 'var(--bg-light)', border: '1px solid var(--border-color)', color: 'var(--text-primary)',
-                cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, transition: 'all 0.2s ease',
+                display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: '0.6rem 1.25rem', borderRadius: 'var(--radius-md)', 
+                background: 'var(--bg-light)', border: 'var(--border-thin) solid var(--border-color)', color: 'var(--text-primary)',
+                cursor: 'pointer', fontSize: '0.875rem', fontWeight: 'var(--font-semibold)', transition: 'all var(--transition-base)',
               }}
             >
               <Printer size={16} /> Print Report
@@ -1009,9 +982,9 @@ export default function Reports({ db }: ReportsProps) {
             <button 
               onClick={handleExportCSV}
               style={{ 
-                display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.25rem', borderRadius: '0.5rem', 
-                background: 'var(--bg-light)', border: '1px solid var(--border-color)', color: 'var(--text-primary)',
-                cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, transition: 'all 0.2s ease',
+                display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: '0.6rem 1.25rem', borderRadius: 'var(--radius-md)', 
+                background: 'var(--bg-light)', border: 'var(--border-thin) solid var(--border-color)', color: 'var(--text-primary)',
+                cursor: 'pointer', fontSize: '0.875rem', fontWeight: 'var(--font-semibold)', transition: 'all var(--transition-base)',
               }}
             >
               <Download size={16} /> Export CSV
@@ -1021,9 +994,9 @@ export default function Reports({ db }: ReportsProps) {
       </div>
 
       {/* Main Content Area */}
-      <div className="panel" style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', borderRadius: '0.75rem' }}>
+      <div className="panel" style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-6)', borderRadius: 'var(--radius-lg)' }}>
         {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px', color: 'var(--text-secondary)', fontSize: '1.1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px', color: 'var(--text-secondary)', fontSize: 'var(--text-lg)' }}>
              <div className="spinner" style={{ marginRight: '1rem', width: '24px', height: '24px', border: '3px solid var(--border-color)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
              Loading Data...
           </div>
@@ -1038,19 +1011,19 @@ export default function Reports({ db }: ReportsProps) {
                   { label: "Total Expenses", val: calculateSalesSummary().totalExpenses, color: 'var(--error)' },
                   { label: "Net Profit", val: (calculateSalesSummary().totalRevenue - calculateSalesSummary().totalExpenses), color: 'var(--success, #10b981)' },
                 ].map(stat => (
-                  <div key={stat.label} style={{ padding: '1.5rem', background: 'var(--bg-light)', borderRadius: '0.5rem', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0, fontWeight: 500 }}>{stat.label}</p>
-                    <p style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0, color: stat.color }}>₹{stat.val.toFixed(2)}</p>
+                  <div key={stat.label} style={{ padding: 'var(--space-6)', background: 'var(--bg-light)', borderRadius: 'var(--radius-md)', border: 'var(--border-thin) solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0, fontWeight: 'var(--font-medium)' }}>{stat.label}</p>
+                    <p style={{ fontSize: 'var(--text-3xl)', fontWeight: 'var(--font-bold)', margin: 0, color: stat.color }}>₹{stat.val.toFixed(2)}</p>
                   </div>
                 ))}
 
-                <div style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>
-                  <h4 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>Payment Methods</h4>
-                  <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', background: 'var(--bg-light)', padding: '1.25rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }}>
+                <div style={{ gridColumn: '1 / -1', marginTop: 'var(--space-4)' }}>
+                  <h4 style={{ fontSize: 'var(--text-lg)', marginBottom: 'var(--space-4)', color: 'var(--text-primary)' }}>Payment Methods</h4>
+                  <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', background: 'var(--bg-light)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: 'var(--border-thin) solid var(--border-color)' }}>
                     {Object.entries(calculateSalesSummary().paymentBreakdown).map(([mode, amt]) => (
                       <div key={mode} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '100px' }}>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', fontWeight: 500 }}>{mode}</span>
-                        <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-primary)' }}>₹{amt.toFixed(2)}</span>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', fontWeight: 'var(--font-medium)' }}>{mode}</span>
+                        <span style={{ fontWeight: 'var(--font-bold)', fontSize: 'var(--text-lg)', color: 'var(--text-primary)' }}>₹{amt.toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
@@ -1061,54 +1034,54 @@ export default function Reports({ db }: ReportsProps) {
             {/* --- ITEM SALES REPORT --- */}
             {activeMainTab === "Sales Overview" && activeReport === "Item Sales" && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end', background: 'var(--bg-light)', padding: '1.25rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', gap: 'var(--space-4)', flexWrap: 'wrap', alignItems: 'flex-end', background: 'var(--bg-light)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: 'var(--border-thin) solid var(--border-color)' }}>
                     <div style={{ flex: 1, minWidth: '150px' }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Item</label>
+                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 'var(--font-medium)', color: 'var(--text-secondary)' }}>Item</label>
                         <select 
                             value={itemSalesFilter.item} 
                             onChange={e => setItemSalesFilter(p => ({...p, item: e.target.value}))}
-                            style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '0.375rem', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-primary)', outline: 'none', cursor: 'pointer' }}
+                            style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '0.375rem', border: 'var(--border-thin) solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-primary)', outline: 'none', cursor: 'pointer' }}
                         >
                             <option>All Items</option>
                             {uniqueItems.map(item => <option key={item}>{item}</option>)}
                         </select>
                     </div>
                     <div style={{ flex: 1, minWidth: '150px' }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Category</label>
+                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 'var(--font-medium)', color: 'var(--text-secondary)' }}>Category</label>
                         <select 
                             value={itemSalesFilter.category} 
                             onChange={e => setItemSalesFilter(p => ({...p, category: e.target.value}))}
-                            style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '0.375rem', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-primary)', outline: 'none', cursor: 'pointer' }}
+                            style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '0.375rem', border: 'var(--border-thin) solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-primary)', outline: 'none', cursor: 'pointer' }}
                         >
                             <option>All Categories</option>
                             {Object.values(categories).map(cat => <option key={cat}>{cat}</option>)}
                         </select>
                     </div>
                     <div style={{ flex: 2, minWidth: '200px' }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Search</label>
+                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 'var(--font-medium)', color: 'var(--text-secondary)' }}>Search</label>
                         <input 
                             type="text"
                             placeholder="Search items..."
                             value={itemSalesFilter.search} 
                             onChange={e => setItemSalesFilter(p => ({...p, search: e.target.value}))}
-                            style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '0.375rem', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-primary)', outline: 'none' }}
+                            style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '0.375rem', border: 'var(--border-thin) solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-primary)', outline: 'none' }}
                         />
                     </div>
                     <button 
                         onClick={() => setItemSalesFilter({ item: "All Items", category: "All Categories", search: "" })}
-                        style={{ padding: '0.6rem 1.25rem', background: 'var(--bg-light)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s', height: '42px' }}
+                        style={{ padding: '0.6rem 1.25rem', background: 'var(--bg-light)', border: 'var(--border-thin) solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: 'var(--font-semibold)', transition: 'all var(--transition-base)', height: '42px' }}
                     >
                         Reset
                     </button>
                 </div>
 
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-base)' }}>
                   <thead>
                     <tr style={{ borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>
-                      <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Name</th>
-                      <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Category</th>
-                      <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textAlign: 'right' }}>Qty</th>
-                      <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textAlign: 'right' }}>Total</th>
+                      <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)' }}>Name</th>
+                      <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)' }}>Category</th>
+                      <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)', textAlign: 'right' }}>Qty</th>
+                      <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)', textAlign: 'right' }}>Total</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1116,11 +1089,11 @@ export default function Reports({ db }: ReportsProps) {
                         <tr><td colSpan={4} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>No items found matching the filters.</td></tr>
                     ) : (
                         calculateFilteredItemSales().map((row, idx) => (
-                        <tr key={row.name} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: idx % 2 === 0 ? 'transparent' : 'var(--bg-light)', transition: 'background-color 0.15s' }}>
-                            <td style={{ padding: '0.875rem 0.75rem', fontWeight: 500 }}>{row.name}</td>
+                        <tr key={row.name} style={{ borderBottom: 'var(--border-thin) solid var(--border-color)', backgroundColor: idx % 2 === 0 ? 'transparent' : 'var(--bg-light)', transition: 'background-color 0.15s' }}>
+                            <td style={{ padding: '0.875rem 0.75rem', fontWeight: 'var(--font-medium)' }}>{row.name}</td>
                             <td style={{ padding: '0.875rem 0.75rem', color: 'var(--text-secondary)' }}>{row.category}</td>
                             <td style={{ padding: '0.875rem 0.75rem', textAlign: 'right' }}>{row.qty}</td>
-                            <td style={{ padding: '0.875rem 0.75rem', textAlign: 'right', fontWeight: 600 }}>₹{row.total.toFixed(2)}</td>
+                            <td style={{ padding: '0.875rem 0.75rem', textAlign: 'right', fontWeight: 'var(--font-semibold)' }}>₹{row.total.toFixed(2)}</td>
                         </tr>
                         ))
                     )}
@@ -1131,62 +1104,62 @@ export default function Reports({ db }: ReportsProps) {
 
             {/* --- CREDIT CUSTOMERS --- */}
             {activeMainTab === "Credit Customers" && (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-base)' }}>
                     <thead>
                     <tr style={{ borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Customer Name</th>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Phone</th>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textAlign: 'right' }}>Balance</th>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textAlign: 'right' }}>Actions</th>
+                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)' }}>Customer Name</th>
+                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)' }}>Phone</th>
+                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)', textAlign: 'right' }}>Balance</th>
+                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)', textAlign: 'right' }}>Actions</th>
                     </tr>
                     </thead>
                     <tbody>
                     {customers.length === 0 ? (
                         <tr><td colSpan={4} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>No customers found.</td></tr>
                     ) : customers.map((c, idx) => (
-                        <tr key={c.id} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: idx % 2 === 0 ? 'transparent' : 'var(--bg-light)' }}>
-                            <td style={{ padding: '0.875rem 0.75rem', fontWeight: 500 }}>
+                        <tr key={c.id} style={{ borderBottom: 'var(--border-thin) solid var(--border-color)', backgroundColor: idx % 2 === 0 ? 'transparent' : 'var(--bg-light)' }}>
+                            <td style={{ padding: '0.875rem 0.75rem', fontWeight: 'var(--font-medium)' }}>
                                 {editingCustomer?.id === c.id ? (
-                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
                                         <input 
                                             type="text" 
                                             value={editingCustomer.name} 
                                             onChange={e => setEditingCustomer({...editingCustomer, name: e.target.value})}
-                                            style={{ padding: '0.3rem 0.5rem', borderRadius: '0.25rem', border: '1px solid var(--primary)', fontSize: '0.875rem', background: 'var(--bg-light)', color: 'var(--text-primary)' }}
+                                            style={{ padding: '0.3rem 0.5rem', borderRadius: 'var(--radius-xs)', border: 'var(--border-thin) solid var(--primary)', fontSize: '0.875rem', background: 'var(--bg-light)', color: 'var(--text-primary)' }}
                                         />
-                                        <button onClick={handleEditCustomerName} style={{ background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '0.25rem', padding: '0.3rem 0.6rem', cursor: 'pointer', fontWeight: 600 }}>Save</button>
-                                        <button onClick={() => setEditingCustomer(null)} style={{ background: 'var(--bg-light)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '0.25rem', padding: '0.3rem 0.6rem', cursor: 'pointer' }}>Cancel</button>
+                                        <button onClick={handleEditCustomerName} style={{ background: 'var(--primary)', color: 'var(--text-primary)', border: 'none', borderRadius: 'var(--radius-xs)', padding: '0.3rem 0.6rem', cursor: 'pointer', fontWeight: 'var(--font-semibold)' }}>Save</button>
+                                        <button onClick={() => setEditingCustomer(null)} style={{ background: 'var(--bg-light)', color: 'var(--text-primary)', border: 'var(--border-thin) solid var(--border-color)', borderRadius: 'var(--radius-xs)', padding: '0.3rem 0.6rem', cursor: 'pointer' }}>Cancel</button>
                                     </div>
                                 ) : (
                                     <span 
                                         onClick={() => setSelectedCustomer(c)} 
-                                        style={{ cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, transition: 'color 0.2s' }}
+                                        style={{ cursor: 'pointer', color: 'var(--primary)', fontWeight: 'var(--font-semibold)', transition: 'color 0.2s' }}
                                     >
                                         {c.name}
                                     </span>
                                 )}
                             </td>
                             <td style={{ padding: '0.875rem 0.75rem' }}>{c.phone || '-'}</td>
-                            <td style={{ padding: '0.875rem 0.75rem', textAlign: 'right', fontWeight: 700, color: c.credit_balance > 0 ? 'var(--error)' : 'var(--success)' }}>
+                            <td style={{ padding: '0.875rem 0.75rem', textAlign: 'right', fontWeight: 'var(--font-bold)', color: c.credit_balance > 0 ? 'var(--error)' : 'var(--success)' }}>
                                 ₹{c.credit_balance.toFixed(2)}
                             </td>
                             <td style={{ padding: '0.875rem 0.75rem', textAlign: 'right' }}>
-                                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                                <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
                                     <button 
                                         onClick={() => setSelectedCustomer(c)}
-                                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.75rem', background: 'var(--primary)', color: 'var(--primary-fg)', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.75rem', background: 'var(--primary)', color: 'var(--primary-fg)', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: 'var(--font-semibold)' }}
                                     >
                                         <Eye size={14} /> View
                                     </button>
                                     <button 
                                         onClick={() => setEditingCustomer({id: c.id, name: c.name})}
-                                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.75rem', background: 'var(--bg-light)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.8rem' }}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.75rem', background: 'var(--bg-light)', color: 'var(--text-primary)', border: 'var(--border-thin) solid var(--border-color)', borderRadius: '0.375rem', cursor: 'pointer', fontSize: 'var(--text-sm)' }}
                                     >
                                         <Edit2 size={14} /> Edit
                                     </button>
                                     <button 
                                         onClick={() => handleDeleteCustomer(c.id)}
-                                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.75rem', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.75rem', background: 'var(--danger-subtle)', color: 'var(--danger)', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: 'var(--font-semibold)' }}
                                     >
                                         <Trash2 size={14} />
                                     </button>
@@ -1200,32 +1173,32 @@ export default function Reports({ db }: ReportsProps) {
 
             {/* --- RECENT BILLS --- */}
             {activeMainTab === "Recent Bills" && (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-base)' }}>
                     <thead>
                     <tr style={{ borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Bill No</th>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Date/Time</th>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Customer</th>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Payment Mode</th>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textAlign: 'right' }}>Total</th>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textAlign: 'center' }}>Action</th>
+                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)' }}>Bill No</th>
+                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)' }}>Date/Time</th>
+                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)' }}>Customer</th>
+                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)' }}>Payment Mode</th>
+                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)', textAlign: 'right' }}>Total</th>
+                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)', textAlign: 'center' }}>Action</th>
                     </tr>
                     </thead>
                     <tbody>
                     {orders.length === 0 ? (
                         <tr><td colSpan={6} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>No bills found.</td></tr>
                     ) : orders.map((o, idx) => (
-                        <tr key={o.id} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: idx % 2 === 0 ? 'transparent' : 'var(--bg-light)' }}>
-                            <td style={{ padding: '0.875rem 0.75rem', fontWeight: 600, color: 'var(--primary)' }}>{(o as any).bill_number ? `${(o as any).bill_number}` : `#${o.id}`}</td>
+                        <tr key={o.id} style={{ borderBottom: 'var(--border-thin) solid var(--border-color)', backgroundColor: idx % 2 === 0 ? 'transparent' : 'var(--bg-light)' }}>
+                            <td style={{ padding: '0.875rem 0.75rem', fontWeight: 'var(--font-semibold)', color: 'var(--primary)' }}>{(o as any).bill_number ? `${(o as any).bill_number}` : `#${o.id}`}</td>
                             <td style={{ padding: '0.875rem 0.75rem' }}>{new Date(o.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</td>
-                            <td style={{ padding: '0.875rem 0.75rem', fontWeight: 500 }}>{o.customer_name || 'Guest'}</td>
+                            <td style={{ padding: '0.875rem 0.75rem', fontWeight: 'var(--font-medium)' }}>{o.customer_name || 'Guest'}</td>
                             <td style={{ padding: '0.875rem 0.75rem' }}>
                                 {editingPaymentModeId === o.id ? (
-                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
                                         <select 
                                             value={newPaymentMode}
                                             onChange={(e) => setNewPaymentMode(e.target.value)}
-                                            style={{ padding: '0.2rem 0.4rem', borderRadius: '0.25rem', border: '1px solid var(--primary)', fontSize: '0.875rem', background: 'var(--bg-light)', color: 'var(--text-primary)' }}
+                                            style={{ padding: '0.2rem 0.4rem', borderRadius: 'var(--radius-xs)', border: 'var(--border-thin) solid var(--primary)', fontSize: '0.875rem', background: 'var(--bg-light)', color: 'var(--text-primary)' }}
                                         >
                                             <option value="Cash">Cash</option>
                                             <option value="Card">Card</option>
@@ -1234,19 +1207,19 @@ export default function Reports({ db }: ReportsProps) {
                                         </select>
                                         <button 
                                             onClick={() => handleUpdatePaymentMode(o.id)}
-                                            style={{ background: 'var(--primary)', color: 'var(--primary-fg)', border: 'none', borderRadius: '0.25rem', padding: '0.2rem 0.4rem', cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }}
+                                            style={{ background: 'var(--primary)', color: 'var(--primary-fg)', border: 'none', borderRadius: 'var(--radius-xs)', padding: '0.2rem 0.4rem', cursor: 'pointer', fontWeight: 'var(--font-semibold)', fontSize: 'var(--text-xs)' }}
                                         >
                                             Save
                                         </button>
                                         <button 
                                             onClick={() => setEditingPaymentModeId(null)}
-                                            style={{ background: 'var(--bg-light)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '0.25rem', padding: '0.2rem 0.4rem', cursor: 'pointer', fontSize: '0.75rem' }}
+                                            style={{ background: 'var(--bg-light)', color: 'var(--text-primary)', border: 'var(--border-thin) solid var(--border-color)', borderRadius: 'var(--radius-xs)', padding: '0.2rem 0.4rem', cursor: 'pointer', fontSize: 'var(--text-xs)' }}
                                         >
                                             Cancel
                                         </button>
                                     </div>
                                 ) : (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                                         <span>{o.payment_mode || 'Cash'}</span>
                                         <button 
                                             onClick={() => {
@@ -1261,11 +1234,11 @@ export default function Reports({ db }: ReportsProps) {
                                     </div>
                                 )}
                             </td>
-                            <td style={{ padding: '0.875rem 0.75rem', textAlign: 'right', fontWeight: 700 }}>₹{o.total.toFixed(2)}</td>
+                            <td style={{ padding: '0.875rem 0.75rem', textAlign: 'right', fontWeight: 'var(--font-bold)' }}>₹{o.total.toFixed(2)}</td>
                             <td style={{ padding: '0.875rem 0.75rem', textAlign: 'center' }}>
                                 <button 
                                     onClick={() => handleReprintBill(o.id)}
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.75rem', background: 'var(--bg-light)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.75rem', background: 'var(--bg-light)', border: 'var(--border-thin) solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '0.375rem', cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: 'var(--font-semibold)' }}
                                 >
                                     <Printer size={14} /> Reprint
                                 </button>
@@ -1283,43 +1256,43 @@ export default function Reports({ db }: ReportsProps) {
       {selectedCustomer && (
           <div style={{
               position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-              backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1500, padding: '1.5rem',
+              backgroundColor: 'var(--overlay-heavy)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1500, padding: 'var(--space-6)',
               backdropFilter: 'blur(6px)'
           }}>
               <div style={{
                   background: 'var(--bg-white)', width: '100%', maxWidth: '800px', maxHeight: '90vh', 
                   borderRadius: '16px', display: 'flex', flexDirection: 'column', overflow: 'hidden',
                   boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-                  border: '1px solid var(--border-color)'
+                  border: 'var(--border-thin) solid var(--border-color)'
               }}>
                   {/* Modal Header */}
-                  <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-white)' }}>
+                  <div style={{ padding: 'var(--space-6)', borderBottom: 'var(--border-thin) solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-white)' }}>
                       <div>
-                          <h2 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--text-primary)', fontWeight: 700 }}>{selectedCustomer.name}</h2>
-                          <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{selectedCustomer.phone || 'No phone'}</p>
+                          <h2 style={{ margin: 0, fontSize: 'var(--text-2xl)', color: 'var(--text-primary)', fontWeight: 'var(--font-bold)' }}>{selectedCustomer.name}</h2>
+                          <p style={{ margin: '0.25rem 0 0 0', fontSize: 'var(--text-base)', color: 'var(--text-secondary)' }}>{selectedCustomer.phone || 'No phone'}</p>
                       </div>
-                      <button onClick={() => setSelectedCustomer(null)} style={{ background: 'var(--bg-light)', border: '1px solid var(--border-color)', borderRadius: '50%', padding: '0.5rem', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.color = 'var(--text-primary)'} onMouseOut={e => e.currentTarget.style.color = 'var(--text-secondary)'}><X size={20} /></button>
+                      <button onClick={() => setSelectedCustomer(null)} style={{ background: 'var(--bg-light)', border: 'var(--border-thin) solid var(--border-color)', borderRadius: '50%', padding: '0.5rem', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all var(--transition-base)' }} onMouseOver={e => e.currentTarget.style.color = 'var(--text-primary)'} onMouseOut={e => e.currentTarget.style.color = 'var(--text-secondary)'}><X size={20} /></button>
                   </div>
 
                   {/* Modal Body */}
-                  <div style={{ padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem', background: 'var(--bg-white)' }}>
+                  <div style={{ padding: 'var(--space-6)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', background: 'var(--bg-white)' }}>
                       
                       {/* Summary Cards */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                          <div style={{ padding: '1.25rem', background: 'var(--bg-light)', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }}>
-                              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Pending Balance</p>
-                              <p style={{ margin: '0.5rem 0 0 0', fontSize: '2rem', fontWeight: 700, color: selectedCustomer.credit_balance > 0 ? 'var(--error)' : 'var(--success)' }}>₹{selectedCustomer.credit_balance.toFixed(2)}</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-6)' }}>
+                          <div style={{ padding: '1.25rem', background: 'var(--bg-light)', borderRadius: 'var(--radius-md)', border: 'var(--border-thin) solid var(--border-color)' }}>
+                              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-medium)' }}>Pending Balance</p>
+                              <p style={{ margin: '0.5rem 0 0 0', fontSize: 'var(--text-3xl)', fontWeight: 'var(--font-bold)', color: selectedCustomer.credit_balance > 0 ? 'var(--error)' : 'var(--success)' }}>₹{selectedCustomer.credit_balance.toFixed(2)}</p>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', justifyContent: 'center' }}>
                               <button 
                                   onClick={handlePrintCustomerReport}
-                                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.75rem', background: 'var(--bg-light)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600 }}
+                                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)', padding: '0.75rem', background: 'var(--bg-light)', color: 'var(--text-primary)', border: 'var(--border-thin) solid var(--border-color)', borderRadius: '0.375rem', cursor: 'pointer', fontSize: 'var(--text-base)', fontWeight: 'var(--font-semibold)' }}
                               >
                                   <Printer size={16} /> Print Statement
                               </button>
                               <button 
                                   onClick={() => settleCustomerDue(selectedCustomer.id)}
-                                  style={{ width: '100%', padding: '0.75rem', background: 'var(--primary)', color: 'var(--primary-fg)', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}
+                                  style={{ width: '100%', padding: '0.75rem', background: 'var(--primary)', color: 'var(--primary-fg)', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: 'var(--font-semibold)', fontSize: 'var(--text-base)' }}
                               >
                                   Settle All Due
                               </button>
@@ -1327,23 +1300,23 @@ export default function Reports({ db }: ReportsProps) {
                       </div>
 
                       {/* Record Payment Section */}
-                      <div style={{ padding: '1.25rem', background: 'var(--bg-light)', borderRadius: '0.5rem', border: '1px solid var(--border-color)', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
+                      <div style={{ padding: '1.25rem', background: 'var(--bg-light)', borderRadius: 'var(--radius-md)', border: 'var(--border-thin) solid var(--border-color)', display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)', alignItems: 'flex-end' }}>
                           <div style={{ flex: 1, minWidth: '150px' }}>
-                              <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 500 }}>Record Payment</label>
+                              <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 'var(--font-medium)' }}>Record Payment</label>
                               <input 
                                   type="number" 
                                   placeholder="Amount" 
                                   value={partialPaymentAmount}
                                   onChange={e => setPartialPaymentAmount(e.target.value)}
-                                  style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '0.375rem', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-primary)', fontSize: '1rem', outline: 'none' }}
+                                  style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '0.375rem', border: 'var(--border-thin) solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-primary)', fontSize: 'var(--text-base)', outline: 'none' }}
                               />
                           </div>
                           <div style={{ minWidth: '120px' }}>
-                              <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 500 }}>Mode</label>
+                              <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 'var(--font-medium)' }}>Mode</label>
                               <select 
                                   value={partialPaymentMode}
                                   onChange={e => setPartialPaymentMode(e.target.value)}
-                                  style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '0.375rem', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-primary)', fontSize: '1rem', outline: 'none', cursor: 'pointer' }}
+                                  style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '0.375rem', border: 'var(--border-thin) solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-primary)', fontSize: 'var(--text-base)', outline: 'none', cursor: 'pointer' }}
                               >
                                   <option>Cash</option>
                                   <option>UPI</option>
@@ -1352,7 +1325,7 @@ export default function Reports({ db }: ReportsProps) {
                           </div>
                           <button 
                               onClick={handlePartialPayment}
-                              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.25rem', background: 'var(--success, #10b981)', color: 'white', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', height: 'fit-content' }}
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.25rem', background: 'var(--success)', color: 'var(--text-primary)', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: 'var(--font-semibold)', fontSize: 'var(--text-base)', height: 'fit-content' }}
                           >
                               <PlusCircle size={18} /> Record
                           </button>
@@ -1360,21 +1333,21 @@ export default function Reports({ db }: ReportsProps) {
 
                       {/* Transactions Table */}
                       <div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                              <h4 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)' }}>Transaction History</h4>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                              <h4 style={{ margin: 0, fontSize: 'var(--text-lg)', color: 'var(--text-primary)' }}>Transaction History</h4>
                               <div className="date-range-picker">
                                 <div className="date-input-wrapper" onClick={(e) => { const i = e.currentTarget.querySelector('input'); if(i) i.showPicker(); }}>
                                   <CalendarIcon size={14} className="date-icon" />
-                                  <input type="date" value={customerDateRange.start} onChange={e => setCustomerDateRange(p => ({...p, start: e.target.value}))} className="modern-date-input" style={{ fontSize: '0.8rem' }} />
+                                  <input type="date" value={customerDateRange.start} onChange={e => setCustomerDateRange(p => ({...p, start: e.target.value}))} className="modern-date-input" style={{ fontSize: 'var(--text-sm)' }} />
                                 </div>
-                                <span className="date-separator" style={{ fontSize: '0.75rem' }}>to</span>
+                                <span className="date-separator" style={{ fontSize: 'var(--text-xs)' }}>to</span>
                                 <div className="date-input-wrapper" onClick={(e) => { const i = e.currentTarget.querySelector('input'); if(i) i.showPicker(); }}>
                                   <CalendarIcon size={14} className="date-icon" />
-                                  <input type="date" value={customerDateRange.end} onChange={e => setCustomerDateRange(p => ({...p, end: e.target.value}))} className="modern-date-input" style={{ fontSize: '0.8rem' }} />
+                                  <input type="date" value={customerDateRange.end} onChange={e => setCustomerDateRange(p => ({...p, end: e.target.value}))} className="modern-date-input" style={{ fontSize: 'var(--text-sm)' }} />
                                 </div>
                               </div>
                           </div>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-base)' }}>
                               <thead>
                                   <tr style={{ borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>
                                       <th style={{ padding: '0.75rem' }}>Date</th>
@@ -1386,28 +1359,28 @@ export default function Reports({ db }: ReportsProps) {
                               </thead>
                               <tbody>
                                   {customerTransactions.length === 0 ? (
-                                      <tr><td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>No history found.</td></tr>
+                                      <tr><td colSpan={5} style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-secondary)' }}>No history found.</td></tr>
                                   ) : customerTransactions.map((t, idx) => (
-                                      <tr key={`${t.type}-${t.id}`} style={{ borderBottom: '1px solid var(--border-color)', background: idx % 2 === 0 ? 'transparent' : 'var(--bg-light)' }}>
+                                      <tr key={`${t.type}-${t.id}`} style={{ borderBottom: 'var(--border-thin) solid var(--border-color)', background: idx % 2 === 0 ? 'transparent' : 'var(--bg-light)' }}>
                                           <td style={{ padding: '0.75rem' }}>{new Date(t.date).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</td>
                                           <td style={{ padding: '0.75rem', display: 'flex', alignItems: 'center' }}>
                                               <span style={{ 
-                                                  padding: '0.15rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.7rem', marginRight: '0.5rem',
-                                                  background: t.type === 'bill' ? '#fee2e2' : '#dcfce7',
-                                                  color: t.type === 'bill' ? '#dc2626' : '#16a34a',
-                                                  textTransform: 'uppercase', fontWeight: 700
+                                                  padding: '0.15rem 0.4rem', borderRadius: 'var(--radius-xs)', fontSize: '0.7rem', marginRight: '0.5rem',
+                                                  background: t.type === 'bill' ? 'var(--danger-subtle)' : 'var(--success-subtle)',
+                                                  color: t.type === 'bill' ? 'var(--danger)' : 'var(--success)',
+                                                  textTransform: 'uppercase', fontWeight: 'var(--font-bold)'
                                               }}>
                                                   {t.type}
                                               </span>
                                               {t.details}
                                           </td>
-                                          <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 700 }}>₹{t.amount.toFixed(2)}</td>
-                                          <td style={{ padding: '0.75rem', fontWeight: 500 }}>{t.mode}</td>
+                                          <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 'var(--font-bold)' }}>₹{t.amount.toFixed(2)}</td>
+                                          <td style={{ padding: '0.75rem', fontWeight: 'var(--font-medium)' }}>{t.mode}</td>
                                           <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                                               {t.type === 'bill' && (
                                                   <button 
                                                       onClick={() => handleReprintBill(t.id)}
-                                                      style={{ background: 'var(--bg-light)', border: '1px solid var(--border-color)', borderRadius: '0.25rem', padding: '0.3rem', cursor: 'pointer', color: 'var(--text-primary)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                                      style={{ background: 'var(--bg-light)', border: 'var(--border-thin) solid var(--border-color)', borderRadius: 'var(--radius-xs)', padding: '0.3rem', cursor: 'pointer', color: 'var(--text-primary)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                                                       title="Reprint Bill"
                                                   >
                                                       <Printer size={14} />

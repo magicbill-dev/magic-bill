@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import { firestore } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import Database from "@tauri-apps/plugin-sql";
-import { ShieldCheck, LogOut, RefreshCw, UserCircle, Store, Phone, Mail, Fingerprint, Activity } from "lucide-react";
+import {
+  ShieldCheck, LogOut, RefreshCw, UserCircle, KeyRound,
+  Loader2, Activity, Building2, Phone, Mail, CalendarClock,
+  CheckCircle2, AlertTriangle, XCircle, Crown, Zap
+} from "lucide-react";
 
 interface AccountProps {
   db: Database | null;
@@ -10,9 +14,10 @@ interface AccountProps {
 
 export default function Account({ db }: AccountProps) {
   const [licenseKey, setLicenseKey] = useState<string>(() => localStorage.getItem('magicbill_license_key') || '');
-  const [previousKey, setPreviousKey] = useState<string>(() => localStorage.getItem('magicbill_license_key_history') || '');
+  const [previousKey] = useState<string>(() => localStorage.getItem('magicbill_license_key_history') || '');
   const [inputKey, setInputKey] = useState('');
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState('');
   const [subDetails, setSubDetails] = useState<any>(null);
   const [userDetails, setUserDetails] = useState<any>(null);
@@ -21,7 +26,7 @@ export default function Account({ db }: AccountProps) {
     if (db) {
       loadLocalSubscription();
       if (licenseKey) {
-        verifyAndFetchSubscription(licenseKey);
+        verifyAndFetchSubscription(licenseKey, true);
       }
     }
   }, [db, licenseKey]);
@@ -30,109 +35,67 @@ export default function Account({ db }: AccountProps) {
     if (!db) return;
     try {
       const localSub: any[] = await db.select('SELECT * FROM subscription WHERE id = 1');
-      if (localSub && localSub.length > 0) {
-        setSubDetails(localSub[0]);
-      }
+      if (localSub && localSub.length > 0) setSubDetails(localSub[0]);
       const localUser: any[] = await db.select('SELECT * FROM user_details WHERE id = 1');
-      if (localUser && localUser.length > 0) {
-        setUserDetails(localUser[0]);
-      }
+      if (localUser && localUser.length > 0) setUserDetails(localUser[0]);
     } catch (e) {
       console.error("Error reading local data:", e);
     }
   };
 
-  const verifyAndFetchSubscription = async (keyToVerify: string) => {
+  const verifyAndFetchSubscription = async (keyToVerify: string, silent = false) => {
     if (!db) return;
+    if (!silent) setSyncing(true);
     setLoading(true);
     setError('');
     try {
       const userDocRef = doc(firestore, 'users', keyToVerify);
       const userDoc = await getDoc(userDocRef);
-      
       if (userDoc.exists()) {
         const data = userDoc.data();
         const sub = data.subscription || {};
-        
         const userInfo = {
-           displayName: data.displayName || '',
-           email: data.email || '',
-           mobileNumber: data.mobileNumber || '',
-           restaurantName: data.restaurantName || ''
+          displayName: data.displayName || '',
+          email: data.email || '',
+          mobileNumber: data.mobileNumber || '',
+          restaurantName: data.restaurantName || ''
         };
-        
-        // Save valid key
         localStorage.setItem('magicbill_license_key', keyToVerify);
         localStorage.setItem('magicbill_license_key_history', keyToVerify);
-        setPreviousKey(keyToVerify);
         setLicenseKey(keyToVerify);
         setSubDetails(sub);
         setUserDetails(userInfo);
-        
-        // Ensure user_details table exists
+
         await db.execute(`
           CREATE TABLE IF NOT EXISTS user_details (
             id INTEGER PRIMARY KEY CHECK (id = 1),
-            displayName TEXT,
-            email TEXT,
-            mobileNumber TEXT,
-            restaurantName TEXT
+            displayName TEXT, email TEXT, mobileNumber TEXT, restaurantName TEXT
           );
         `);
         await db.execute(`INSERT OR IGNORE INTO user_details (id) VALUES (1)`);
-
-        // Sync user details to SQLite
         await db.execute(
-          `UPDATE user_details SET 
-            displayName = $1, 
-            email = $2, 
-            mobileNumber = $3, 
-            restaurantName = $4
-          WHERE id = 1`,
-          [
-            userInfo.displayName,
-            userInfo.email,
-            userInfo.mobileNumber,
-            userInfo.restaurantName
-          ]
+          `UPDATE user_details SET displayName=$1, email=$2, mobileNumber=$3, restaurantName=$4 WHERE id=1`,
+          [userInfo.displayName, userInfo.email, userInfo.mobileNumber, userInfo.restaurantName]
         );
-
-        // Sync subscription to SQLite
         await db.execute(
-          `UPDATE subscription SET 
-            status = $1, 
-            planId = $2, 
-            subscriptionId = $3, 
-            nextBillingDate = $4, 
-            updatedAt = $5
-          WHERE id = 1`,
-          [
-            sub.status || '', 
-            sub.planId || '', 
-            sub.id || '', 
-            sub.nextBillingDate || '', 
-            sub.updatedAt || ''
-          ]
+          `UPDATE subscription SET status=$1, planId=$2, subscriptionId=$3, nextBillingDate=$4, updatedAt=$5 WHERE id=1`,
+          [sub.status || '', sub.planId || '', sub.id || '', sub.nextBillingDate || '', sub.updatedAt || '']
         );
       } else {
-        setError('Invalid License Key / User ID.');
-        if (licenseKey === keyToVerify) {
-           handleLogout(); // clear if current key became invalid
-        }
+        setError('Invalid License Key / User ID. Please check and try again.');
+        if (licenseKey === keyToVerify) handleLogout();
       }
     } catch (err: any) {
       console.error("Error fetching data from Firebase:", err);
-      setError(err.message || 'Failed to verify license key. Check your internet connection.');
+      setError(err.message || 'Failed to verify. Please check your internet connection.');
     } finally {
       setLoading(false);
+      setSyncing(false);
     }
   };
 
   const handleActivate = () => {
-    if (!inputKey.trim()) {
-      setError("Please enter a valid User ID.");
-      return;
-    }
+    if (!inputKey.trim()) { setError("Please enter a valid User ID."); return; }
     verifyAndFetchSubscription(inputKey.trim());
   };
 
@@ -143,347 +106,407 @@ export default function Account({ db }: AccountProps) {
     setSubDetails(null);
     setUserDetails(null);
     if (db) {
-      await db.execute('UPDATE subscription SET status = "", planId = "", subscriptionId = "", nextBillingDate = "", updatedAt = "" WHERE id = 1');
-      try {
-        await db.execute('UPDATE user_details SET displayName = "", email = "", mobileNumber = "", restaurantName = "" WHERE id = 1');
-      } catch(e) {}
+      await db.execute('UPDATE subscription SET status="", planId="", subscriptionId="", nextBillingDate="", updatedAt="" WHERE id=1');
+      try { await db.execute('UPDATE user_details SET displayName="", email="", mobileNumber="", restaurantName="" WHERE id=1'); } catch (e) {}
     }
   };
 
   const calculatePlanStatus = () => {
-     if (!subDetails || !subDetails.nextBillingDate) return { status: 'expired', remainingDays: 0 };
-     const nextBilling = new Date(subDetails.nextBillingDate).getTime();
-     const now = new Date().getTime();
-     const gracePeriodMs = 10 * 24 * 60 * 60 * 1000;
-     
-     const diffDays = Math.ceil((nextBilling - now) / (1000 * 3600 * 24));
-     
-     if (now <= nextBilling) {
-         return { status: 'active', remainingDays: diffDays };
-     } else if (now <= nextBilling + gracePeriodMs) {
-         const graceDaysLeft = 10 + diffDays; // diffDays is negative here
-         return { status: 'grace', remainingDays: graceDaysLeft };
-     } else {
-         return { status: 'expired', remainingDays: 0 };
-     }
+    if (!subDetails || !subDetails.nextBillingDate) return { status: 'expired', remainingDays: 0 };
+    const nextBilling = new Date(subDetails.nextBillingDate).getTime();
+    const now = new Date().getTime();
+    const gracePeriodMs = 10 * 24 * 60 * 60 * 1000;
+    const diffDays = Math.ceil((nextBilling - now) / (1000 * 3600 * 24));
+    if (now <= nextBilling) return { status: 'active', remainingDays: diffDays };
+    if (now <= nextBilling + gracePeriodMs) return { status: 'grace', remainingDays: 10 + diffDays };
+    return { status: 'expired', remainingDays: 0 };
   };
 
   const planInfo = calculatePlanStatus();
 
+  /** Derive initials for avatar */
+  const getInitials = () => {
+    const name = userDetails?.displayName || userDetails?.restaurantName || '';
+    return name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() || '??';
+  };
+
+  const statusConfig = {
+    active: { icon: CheckCircle2, label: 'ACTIVE', color: 'var(--success)', bg: 'var(--success-subtle)', borderColor: 'color-mix(in srgb, var(--success) 30%, transparent)' },
+    grace:  { icon: AlertTriangle, label: 'GRACE PERIOD', color: 'var(--warning)', bg: 'var(--warning-subtle)', borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)' },
+    expired:{ icon: XCircle, label: 'EXPIRED', color: 'var(--danger)', bg: 'var(--danger-subtle)', borderColor: 'color-mix(in srgb, var(--danger) 30%, transparent)' },
+    tampered:{ icon: XCircle, label: 'LOCKED', color: 'var(--danger)', bg: 'var(--danger-subtle)', borderColor: 'color-mix(in srgb, var(--danger) 30%, transparent)' },
+  } as const;
+
+  const currentStatus = statusConfig[planInfo.status as keyof typeof statusConfig] ?? statusConfig.expired;
+  const StatusIcon = currentStatus.icon;
+
+  /* ── Activation / not-logged-in view ────────────────────────────── */
+  if (!licenseKey) {
+    return (
+      <div className="settings-page-wrapper" style={{ justifyContent: 'center', alignItems: 'center', maxWidth: '520px' }}>
+        <div style={{
+          textAlign: 'center', padding: 'var(--space-8) 0 var(--space-4)'
+        }}>
+          <div style={{
+            width: 72, height: 72, borderRadius: 'var(--radius-full)',
+            background: 'var(--accent-subtle)',
+            border: '2px solid color-mix(in srgb, var(--accent) 30%, transparent)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto var(--space-4)',
+            boxShadow: '0 0 0 8px color-mix(in srgb, var(--accent) 8%, transparent)'
+          }}>
+            <ShieldCheck size={36} color="var(--accent)" strokeWidth={1.5} />
+          </div>
+          <h2 style={{ margin: '0 0 var(--space-2)', fontSize: 'var(--text-2xl)', fontWeight: 800, color: 'var(--text-primary)' }}>
+            Activate Magic Bill
+          </h2>
+          <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 'var(--text-base)' }}>
+            Enter your User ID to unlock all features
+          </p>
+        </div>
+
+        <div className="modern-panel" style={{ gap: 'var(--space-5)' }}>
+          {error && (
+            <div style={{
+              color: 'var(--danger)', padding: 'var(--space-3) var(--space-4)',
+              background: 'var(--danger-subtle)',
+              border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)',
+              borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)',
+              display: 'flex', alignItems: 'center', gap: 'var(--space-2)'
+            }}>
+              <XCircle size={16} />
+              {error}
+            </div>
+          )}
+
+          <div className="modern-form-group">
+            <label style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              License Key / User ID
+            </label>
+            <input
+              type="text"
+              className="modern-input"
+              placeholder="Paste your key here…"
+              value={inputKey}
+              onChange={(e) => { setInputKey(e.target.value); setError(''); }}
+              onKeyDown={(e) => e.key === 'Enter' && handleActivate()}
+              style={{ fontSize: 'var(--text-base)' }}
+            />
+          </div>
+
+          <button
+            className="modern-btn modern-btn-primary"
+            onClick={handleActivate}
+            disabled={loading}
+            style={{ width: '100%', padding: '0.9rem', fontSize: 'var(--text-base)' }}
+          >
+            {loading ? <Loader2 size={18} className="spin" /> : <KeyRound size={18} />}
+            {loading ? 'Activating…' : 'Activate Device'}
+          </button>
+
+          {previousKey && (
+            <button
+              onClick={() => verifyAndFetchSubscription(previousKey)}
+              disabled={loading}
+              className="modern-btn"
+              style={{ width: '100%' }}
+            >
+              <RefreshCw size={16} />
+              Restore Previous Key
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Logged-in view ─────────────────────────────────────────────── */
+  return (
+    <div className="settings-page-wrapper" style={{ paddingBottom: 'var(--space-8)' }}>
+
+      {/* ── Hero Banner ─────────────────────────────────────────────── */}
+      <div style={{
+        borderRadius: 'var(--radius-xl)',
+        background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, var(--bg-secondary)), var(--bg-secondary))',
+        border: '1px solid color-mix(in srgb, var(--accent) 20%, var(--border-subtle))',
+        padding: 'var(--space-8) var(--space-8)',
+        display: 'flex', alignItems: 'center', gap: 'var(--space-6)',
+        boxShadow: '0 4px 20px -6px color-mix(in srgb, var(--accent) 25%, transparent)',
+        position: 'relative', overflow: 'hidden'
+      }}>
+        {/* Decorative circle */}
+        <div style={{
+          position: 'absolute', top: -60, right: -60, width: 220, height: 220,
+          borderRadius: '50%',
+          background: 'color-mix(in srgb, var(--accent) 10%, transparent)',
+          pointerEvents: 'none'
+        }} />
+
+        {/* Avatar */}
+        <div style={{
+          flexShrink: 0, width: 72, height: 72, borderRadius: 'var(--radius-full)',
+          background: 'linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, var(--info)))',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 'var(--text-2xl)', fontWeight: 800, color: 'var(--accent-fg)',
+          boxShadow: '0 4px 16px -4px color-mix(in srgb, var(--accent) 50%, transparent)',
+          letterSpacing: '0.02em', zIndex: 1
+        }}>
+          {getInitials()}
+        </div>
+
+        <div style={{ flex: 1, zIndex: 1 }}>
+          <h2 style={{ margin: '0 0 var(--space-1)', fontSize: 'var(--text-2xl)', fontWeight: 800, color: 'var(--text-primary)' }}>
+            {userDetails?.displayName || userDetails?.restaurantName || 'Magic Bill Account'}
+          </h2>
+          <p style={{ margin: '0 0 var(--space-3)', color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
+            {userDetails?.email || 'Account & Licensing Dashboard'}
+          </p>
+          {/* Status chips */}
+          <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '4px 12px', borderRadius: 'var(--radius-full)',
+              fontSize: 'var(--text-xs)', fontWeight: 700, letterSpacing: '0.06em',
+              background: currentStatus.bg, color: currentStatus.color,
+              border: `1px solid ${currentStatus.borderColor}`
+            }}>
+              <StatusIcon size={12} strokeWidth={2.5} />
+              {currentStatus.label}
+            </span>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '4px 12px', borderRadius: 'var(--radius-full)',
+              fontSize: 'var(--text-xs)', fontWeight: 600,
+              background: 'var(--bg-inset)', color: 'var(--text-secondary)',
+              border: '1px solid var(--border-subtle)'
+            }}>
+              <Crown size={12} />
+              {subDetails?.planId ? `${subDetails.planId} Plan` : 'Free Plan'}
+            </span>
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', zIndex: 1, flexShrink: 0 }}>
+          <button
+            className="modern-btn"
+            onClick={() => verifyAndFetchSubscription(licenseKey)}
+            disabled={syncing || loading}
+            style={{ minWidth: 160 }}
+          >
+            <RefreshCw size={16} className={syncing ? 'spin' : ''} />
+            {syncing ? 'Syncing…' : 'Sync Data'}
+          </button>
+          <button
+            className="modern-btn modern-btn-danger"
+            onClick={handleLogout}
+            disabled={loading}
+            style={{ minWidth: 160 }}
+          >
+            <LogOut size={16} />
+            Deactivate
+          </button>
+        </div>
+      </div>
+
+      {/* ── Two-column grid ─────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-6)' }}>
+
+        {/* ── Identity Panel ──────────────────────────────────────── */}
+        <div className="modern-panel">
+          <div className="modern-panel-header">
+            <div style={{
+              width: 34, height: 34, borderRadius: 'var(--radius-md)',
+              background: 'var(--accent-subtle)', color: 'var(--accent)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <UserCircle size={18} />
+            </div>
+            Identity
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+            <InfoRow icon={<UserCircle size={15} color="var(--accent)" />} label="Name" value={userDetails?.displayName} />
+            <InfoRow icon={<Building2 size={15} color="var(--accent)" />} label="Business" value={userDetails?.restaurantName} />
+            <InfoRow icon={<Phone size={15} color="var(--accent)" />} label="Mobile" value={userDetails?.mobileNumber} />
+            <InfoRow icon={<Mail size={15} color="var(--accent)" />} label="Email" value={userDetails?.email} />
+          </div>
+        </div>
+
+        {/* ── Plan Status Panel ───────────────────────────────────── */}
+        <div className="modern-panel">
+          <div className="modern-panel-header">
+            <div style={{
+              width: 34, height: 34, borderRadius: 'var(--radius-md)',
+              background: 'var(--accent-subtle)', color: 'var(--accent)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <Activity size={18} />
+            </div>
+            Plan Status
+          </div>
+
+          {subDetails ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+              {/* Plan name + badge */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Current Plan</div>
+                  <div style={{ fontSize: 'var(--text-xl)', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
+                    {subDetails.planId || 'Free'} Plan
+                  </div>
+                </div>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '5px 14px', borderRadius: 'var(--radius-full)',
+                  fontSize: 'var(--text-xs)', fontWeight: 700, letterSpacing: '0.07em',
+                  background: currentStatus.bg, color: currentStatus.color,
+                  border: `1px solid ${currentStatus.borderColor}`
+                }}>
+                  <StatusIcon size={12} strokeWidth={2.5} /> {currentStatus.label}
+                </span>
+              </div>
+
+              {/* Stats row */}
+              <div style={{
+                display: 'grid', gridTemplateColumns: '1fr 1fr',
+                gap: 'var(--space-3)'
+              }}>
+                <div style={{
+                  background: 'var(--bg-inset)', borderRadius: 'var(--radius-lg)',
+                  border: '1px solid var(--border-subtle)', padding: 'var(--space-4)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    <CalendarClock size={14} color="var(--text-tertiary)" />
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Next Billing
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 'var(--text-base)', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {subDetails.nextBillingDate
+                      ? new Date(subDetails.nextBillingDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+                      : 'N/A'}
+                  </div>
+                </div>
+
+                <div style={{
+                  background: 'var(--bg-inset)', borderRadius: 'var(--radius-lg)',
+                  border: '1px solid var(--border-subtle)', padding: 'var(--space-4)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    <Zap size={14} color="var(--text-tertiary)" />
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {planInfo.status === 'grace' ? 'Grace Days' : 'Days Left'}
+                    </span>
+                  </div>
+                  <div style={{
+                    fontSize: 'var(--text-2xl)', fontWeight: 800,
+                    color: currentStatus.color,
+                    lineHeight: 1
+                  }}>
+                    {planInfo.remainingDays}
+                  </div>
+                </div>
+              </div>
+
+              {/* Alerts */}
+              {planInfo.status === 'grace' && (
+                <div style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  background: 'var(--warning-subtle)',
+                  border: '1px solid color-mix(in srgb, var(--warning) 25%, transparent)',
+                  borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)', color: 'var(--warning)'
+                }}>
+                  <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+                  Your subscription is in the grace period. Renew soon to avoid interruption.
+                </div>
+              )}
+
+              {planInfo.status === 'tampered' && (
+                <div style={{
+                  padding: 'var(--space-3) var(--space-4)',
+                  background: 'var(--danger-subtle)',
+                  border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)',
+                  borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)', color: 'var(--danger)'
+                }}>
+                  System time tampering detected. Please correct your clock and sync again.
+                </div>
+              )}
+
+              {planInfo.status === 'expired' && (
+                <a
+                  href="https://magicbill.in"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="modern-btn modern-btn-primary"
+                  style={{ textAlign: 'center', justifyContent: 'center' }}
+                >
+                  <Zap size={16} /> Renew Plan
+                </a>
+              )}
+            </div>
+          ) : (
+            <div style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)', padding: 'var(--space-4) 0' }}>
+              No subscription data found. Try syncing.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Device panel ────────────────────────────────────────────── */}
+      <div className="modern-panel" style={{ flexDirection: 'row', alignItems: 'center', gap: 'var(--space-6)', padding: 'var(--space-5) var(--space-6)' }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: 'var(--radius-lg)', flexShrink: 0,
+          background: 'var(--success-subtle)',
+          border: '1px solid color-mix(in srgb, var(--success) 25%, transparent)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <ShieldCheck size={22} color="var(--success)" />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Device Authenticated</div>
+          <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+            This Magic Bill instance is securely linked to your account.
+          </div>
+        </div>
+        <div style={{
+          fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)',
+          fontFamily: 'var(--font-mono)', padding: '4px 10px',
+          background: 'var(--bg-inset)', borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border-subtle)', maxWidth: 220,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+        }} title={licenseKey}>
+          {licenseKey.slice(0, 24)}…
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
+/* ── Helper: info row ──────────────────────────────────────────────── */
+function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value?: string }) {
   return (
     <div style={{
-      width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', 
-      backgroundColor: 'var(--bg-dark, #000000)', padding: '2rem', boxSizing: 'border-box', overflowY: 'auto'
+      display: 'flex', alignItems: 'center',
+      padding: 'var(--space-3) 0',
+      borderBottom: '1px solid var(--border-subtle)',
+      gap: 'var(--space-3)'
     }}>
       <div style={{
-         width: '100%', maxWidth: licenseKey ? '900px' : '450px', 
-         background: 'linear-gradient(135deg, rgba(15,15,20, 0.95) 0%, rgba(5,5,10, 0.95) 100%)',
-         borderRadius: '1.5rem', padding: '0', color: '#ffffff', position: 'relative',
-         boxShadow: '0 30px 60px -15px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255,255,255,0.1)',
-         fontFamily: 'system-ui, -apple-system, sans-serif',
-         overflow: 'hidden',
-         border: '1px solid rgba(255,255,255,0.08)',
-         animation: 'popIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-         display: 'flex',
-         flexDirection: licenseKey ? 'row' : 'column',
-         minHeight: '400px'
+        width: 30, height: 30, borderRadius: 'var(--radius-md)',
+        background: 'var(--accent-subtle)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0
       }}>
-        <style>{`
-          @keyframes popIn {
-            0% { opacity: 0; transform: scale(0.95) translateY(10px); }
-            100% { opacity: 1; transform: scale(1) translateY(0); }
-          }
-          @keyframes spin { 100% { transform: rotate(360deg); } }
-          @keyframes borderRotate {
-            100% { transform: rotate(360deg); }
-          }
-          @keyframes pulse {
-             0% { transform: scale(1); opacity: 1; }
-             50% { transform: scale(1.5); opacity: 0.5; }
-             100% { transform: scale(1); opacity: 1; }
-          }
-          .spin { animation: spin 1s linear infinite; }
-          .glass-btn { transition: all 0.2s; }
-          .glass-btn:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(255,255,255,0.2) !important; }
-          .glass-btn:active { transform: scale(0.98); }
-          .glass-input:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.2); }
-          
-          .plan-card-wrapper {
-            position: relative;
-            border-radius: 1.25rem;
-            padding: 2px;
-            box-shadow: 0 0 30px -10px var(--glow-color);
-            margin-top: 0.5rem;
-            transition: all 0.3s ease;
-          }
-          .plan-card-clip {
-             position: absolute;
-             inset: 0;
-             border-radius: 1.25rem;
-             overflow: hidden;
-             z-index: 0;
-          }
-          .plan-card-clip::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: conic-gradient(transparent 60%, var(--glow-color) 95%, #ffffff 100%);
-            animation: borderRotate 3s linear infinite;
-          }
-          .plan-card-content {
-            position: relative;
-            background: #0f1015;
-            border-radius: calc(1.25rem - 2px);
-            z-index: 1;
-            padding: 1.5rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1.25rem;
-          }
-          .plan-btn:hover {
-            filter: brightness(1.1);
-          }
-        `}</style>
-
-        {/* Left Pane (or Top Pane if not logged in) */}
-        <div style={{ flex: 1, padding: '3rem 2.5rem', background: 'rgba(0,0,0,0.2)', borderRight: licenseKey ? '1px solid rgba(255,255,255,0.05)' : 'none', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
-           <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '80px', height: '80px', borderRadius: '1.5rem', background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.1))', color: '#60a5fa', marginBottom: '1.5rem', boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.1), 0 10px 20px -5px rgba(0,0,0,0.3)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-              <ShieldCheck size={40} strokeWidth={1.5} />
-           </div>
-           <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.03em', color: '#fff' }}>
-              {licenseKey ? 'Active Device' : 'Device Activation'}
-           </h2>
-           <p style={{ margin: '0.75rem 0 0 0', color: '#94a3b8', fontSize: '1rem', lineHeight: '1.5', maxWidth: '300px' }}>
-              {licenseKey ? 'Your Magic Bill instance is authenticated and connected.' : 'Please enter your unique User ID to unlock the dashboard and reporting features.'}
-           </p>
-
-           {licenseKey && (
-              <div style={{ marginTop: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
-                 <button 
-                    onClick={() => verifyAndFetchSubscription(licenseKey)} 
-                    disabled={loading}
-                    className="glass-btn"
-                    style={{ width: '100%', padding: '0.875rem', backgroundColor: 'rgba(255,255,255,0.05)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.75rem', cursor: loading ? 'not-allowed' : 'pointer', fontSize: '0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontWeight: 500 }}
-                 >
-                    <RefreshCw size={18} className={loading ? "spin" : ""} /> {loading ? 'Syncing...' : 'Sync Latest Data'}
-                 </button>
-                 <button 
-                    onClick={handleLogout}
-                    style={{ width: '100%', padding: '0.875rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '0.75rem', cursor: 'pointer', fontWeight: 600, fontSize: '0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', transition: 'all 0.2s' }}
-                    onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)'; }}
-                    onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.2)'; }}
-                 >
-                    <LogOut size={18} /> Deactivate Device
-                 </button>
-              </div>
-           )}
-        </div>
-        
-        {/* Right Pane (or Bottom Pane if not logged in) */}
-        <div style={{ flex: 1.2, padding: '3rem 2.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-           {!licenseKey ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {error && <div style={{ color: '#fca5a5', padding: '0.875rem', backgroundColor: 'rgba(239, 68, 68, 0.15)', borderRadius: '0.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', border: '1px solid rgba(239, 68, 68, 0.2)' }}>{error}</div>}
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                 <label style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    License Key / User ID
-                 </label>
-                 <input 
-                    type="text" 
-                    placeholder="Paste your key here..." 
-                    value={inputKey}
-                    onChange={(e) => setInputKey(e.target.value)}
-                    className="glass-input"
-                    style={{ padding: '1rem', borderRadius: '0.75rem', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.3)', color: '#fff', fontSize: '1rem', outline: 'none', transition: 'all 0.2s', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.2)' }}
-                 />
-              </div>
-
-              <button 
-                 onClick={handleActivate} 
-                 disabled={loading}
-                 style={{ 
-                    padding: '1rem', 
-                    background: 'linear-gradient(to right, #2563eb, #3b82f6)', 
-                    color: '#fff', 
-                    border: 'none', 
-                    borderRadius: '0.75rem', 
-                    cursor: loading ? 'not-allowed' : 'pointer', 
-                    fontWeight: 600,
-                    fontSize: '1.05rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem',
-                    marginTop: '0.5rem',
-                    boxShadow: '0 10px 20px -10px rgba(37, 99, 235, 0.5), inset 0 1px 1px rgba(255,255,255,0.2)',
-                    transition: 'transform 0.1s, box-shadow 0.1s'
-                 }}
-                 onMouseDown={(e) => !loading && (e.currentTarget.style.transform = 'scale(0.98)')}
-                 onMouseUp={(e) => !loading && (e.currentTarget.style.transform = 'scale(1)')}
-                 onMouseLeave={(e) => !loading && (e.currentTarget.style.transform = 'scale(1)')}
-              >
-                 {loading ? <RefreshCw size={20} className="spin" /> : 'Activate Now'}
-              </button>
-
-              {previousKey && (
-                 <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.8rem', color: '#64748b', textAlign: 'center' }}>Previously used key found:</span>
-                    <button 
-                       onClick={() => setInputKey(previousKey)}
-                       style={{ 
-                          background: 'rgba(255,255,255,0.05)', 
-                          border: '1px dashed rgba(255,255,255,0.2)', 
-                          color: '#94a3b8', 
-                          padding: '0.75rem', 
-                          borderRadius: '0.5rem', 
-                          fontSize: '0.9rem', 
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          wordBreak: 'break-all'
-                       }}
-                       onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#f8fafc'; }}
-                       onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#94a3b8'; }}
-                    >
-                       {previousKey}
-                    </button>
-                 </div>
-              )}
-           </div>
-           ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', animation: 'popIn 0.5s ease-out' }}>
-                 
-                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                       <h3 style={{ margin: 0, fontSize: '0.95rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          <Fingerprint size={18} /> Identity
-                       </h3>
-                    </div>
-                    
-                    {userDetails && (
-                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                             <span style={{ fontSize: '0.8rem', color: '#64748b' }}><UserCircle size={14} style={{verticalAlign: 'text-bottom', marginRight: '4px'}}/> Name</span>
-                             <span style={{ fontSize: '1rem', fontWeight: 500, color: '#f8fafc' }}>{userDetails.displayName || '-'}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                             <span style={{ fontSize: '0.8rem', color: '#64748b' }}><Store size={14} style={{verticalAlign: 'text-bottom', marginRight: '4px'}}/> Business</span>
-                             <span style={{ fontSize: '1rem', fontWeight: 500, color: '#f8fafc' }}>{userDetails.restaurantName || '-'}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                             <span style={{ fontSize: '0.8rem', color: '#64748b' }}><Phone size={14} style={{verticalAlign: 'text-bottom', marginRight: '4px'}}/> Mobile</span>
-                             <span style={{ fontSize: '1rem', fontWeight: 500, color: '#f8fafc' }}>{userDetails.mobileNumber || '-'}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                             <span style={{ fontSize: '0.8rem', color: '#64748b' }}><Mail size={14} style={{verticalAlign: 'text-bottom', marginRight: '4px'}}/> Email</span>
-                             <span style={{ fontSize: '1rem', fontWeight: 500, color: '#f8fafc' }}>{userDetails.email || '-'}</span>
-                          </div>
-                       </div>
-                    )}
-                 </div>
-
-                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {subDetails && (() => {
-                       const isGrace = planInfo.status === 'grace';
-                       const isActive = planInfo.status === 'active';
-                       const isExpired = planInfo.status === 'expired';
-                       const isTampered = planInfo.status === 'tampered';
-
-                       let glowColor = '#3b82f6';
-                       if (isActive) glowColor = '#10b981';
-                       if (isGrace) glowColor = '#f59e0b';
-                       if (isExpired || isTampered) glowColor = '#ef4444';
-
-                       return (
-                          <div className="plan-card-wrapper" style={{ '--glow-color': glowColor } as any}>
-                             <div className="plan-card-clip"></div>
-                             <div className="plan-card-content">
-                                
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem' }}>
-                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                      <span style={{ fontSize: '0.85rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                         <Activity size={16} /> Plan Status
-                                      </span>
-                                      <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff', textTransform: 'capitalize' }}>
-                                         {subDetails.planId || 'Free'} Plan
-                                      </span>
-                                   </div>
-                                   
-                                   {isActive && (
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(16, 185, 129, 0.1)', padding: '0.5rem 1rem', borderRadius: '2rem', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 10px #10b981' }}></div>
-                                         <span style={{ fontSize: '0.85rem', color: '#34d399', fontWeight: 700, letterSpacing: '0.05em' }}>ACTIVE</span>
-                                      </div>
-                                   )}
-                                   {isGrace && (
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(245, 158, 11, 0.1)', padding: '0.5rem 1rem', borderRadius: '2rem', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b', boxShadow: '0 0 10px #f59e0b', animation: 'pulse 2s infinite' }}></div>
-                                         <span style={{ fontSize: '0.85rem', color: '#fbbf24', fontWeight: 700, letterSpacing: '0.05em' }}>GRACE PERIOD</span>
-                                      </div>
-                                   )}
-                                   {isExpired && (
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.5rem 1rem', borderRadius: '2rem', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 10px #ef4444' }}></div>
-                                         <span style={{ fontSize: '0.85rem', color: '#f87171', fontWeight: 700, letterSpacing: '0.05em' }}>EXPIRED</span>
-                                      </div>
-                                   )}
-                                   {isTampered && (
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.5rem 1rem', borderRadius: '2rem', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 10px #ef4444' }}></div>
-                                         <span style={{ fontSize: '0.85rem', color: '#f87171', fontWeight: 700, letterSpacing: '0.05em' }}>LOCKED</span>
-                                      </div>
-                                   )}
-                                </div>
-
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0.5rem 0' }}>
-                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                      <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>Next Billing Date</span>
-                                      <span style={{ fontSize: '1.1rem', fontWeight: 600, color: '#e2e8f0' }}>
-                                         {subDetails.nextBillingDate ? new Date(subDetails.nextBillingDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}
-                                      </span>
-                                   </div>
-                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', alignItems: 'flex-end' }}>
-                                      <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>{isGrace ? 'Grace Days Left' : 'Remaining Days'}</span>
-                                      <span style={{ fontSize: '1.75rem', fontWeight: 800, color: glowColor, lineHeight: 1, textShadow: `0 0 20px ${glowColor}40` }}>
-                                         {planInfo.remainingDays}
-                                      </span>
-                                   </div>
-                                </div>
-
-                                {isTampered && (
-                                   <div style={{ background: 'rgba(239, 68, 68, 0.1)', borderRadius: '0.75rem', padding: '1rem', textAlign: 'center', border: '1px dashed rgba(239, 68, 68, 0.3)' }}>
-                                      <p style={{ color: '#fca5a5', margin: 0, fontSize: '0.9rem', lineHeight: '1.4' }}>System time tampering detected. Your clock is set before your last active session. Please correct your system time and click Sync Latest Data.</p>
-                                   </div>
-                                )}
-                                {isExpired && (
-                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                      <p style={{ color: '#fca5a5', margin: 0, fontSize: '0.9rem', textAlign: 'center', background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '0.5rem' }}>Your plan has expired. Please renew to continue using all features.</p>
-                                      <a href="https://magicbill.in" target="_blank" rel="noopener noreferrer" className="plan-btn" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', background: glowColor, color: '#fff', textDecoration: 'none', padding: '0.875rem', borderRadius: '0.5rem', fontWeight: 600, fontSize: '1rem', transition: 'all 0.2s', boxShadow: `0 4px 14px 0 ${glowColor}60` }}>
-                                         Renew Plan
-                                      </a>
-                                   </div>
-                                )}
-                                {isGrace && (
-                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                      <p style={{ color: '#fcd34d', margin: 0, fontSize: '0.9rem', textAlign: 'center', background: 'rgba(245, 158, 11, 0.1)', padding: '0.75rem', borderRadius: '0.5rem' }}>Your billing date has passed. Please renew your plan before the grace period ends.</p>
-                                      <a href="https://magicbill.in" target="_blank" rel="noopener noreferrer" className="plan-btn" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'transparent', border: `1px solid ${glowColor}`, color: glowColor, textDecoration: 'none', padding: '0.875rem', borderRadius: '0.5rem', fontWeight: 600, fontSize: '1rem', transition: 'all 0.2s' }}>
-                                         Renew Now
-                                      </a>
-                                   </div>
-                                )}
-
-                             </div>
-                          </div>
-                       );
-                    })()}
-                 </div>
-
-              </div>
-           )}
-        </div>
+        {icon}
+      </div>
+      <div style={{ flex: '0 0 80px', fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-primary)', wordBreak: 'break-all' }}>
+        {value || <span style={{ color: 'var(--text-tertiary)', fontWeight: 400, fontStyle: 'italic' }}>Not set</span>}
       </div>
     </div>
   );

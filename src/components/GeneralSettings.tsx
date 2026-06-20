@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import Database from "@tauri-apps/plugin-sql";
-import { Save, FolderOpen, Store, HardDrive, Building2, MapPin, Phone, Hash, FileText } from "lucide-react";
+import { Save, FolderOpen, Store, HardDrive, Building2, MapPin, Phone, Hash, FileText, Palette, Check } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { useTheme, THEMES } from '../theme/ThemeContext';
 
 interface StoreSettings {
   hotel_name: string;
@@ -22,6 +23,7 @@ interface GeneralSettingsProps {
 }
 
 export default function GeneralSettings({ db, activeTab, setUnsavedChanges, setTriggerSave }: GeneralSettingsProps) {
+  const { theme, setTheme } = useTheme();
   const [settings, setSettings] = useState<StoreSettings>({
     hotel_name: "",
     address: "",
@@ -155,187 +157,107 @@ export default function GeneralSettings({ db, activeTab, setUnsavedChanges, setT
   }
 
   return (
-    <div className="settings-page-wrapper">
-      {toastMessage && (
-        <div style={{
-          position: 'fixed', bottom: '2rem', right: '2rem', backgroundColor: 'var(--primary)', color: 'var(--primary-fg)',
-          padding: '1rem 1.5rem', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', zIndex: 1000, fontWeight: 600,
-          display: 'flex', alignItems: 'center', gap: '0.5rem'
-        }}>
-          {toastMessage}
-        </div>
-      )}
-      
-      {/* Header */}
-      <div className="settings-page-header">
-        <h2 className="settings-page-title">General Settings</h2>
-        <p className="settings-page-subtitle">Manage your establishment details and system configuration</p>
+    <div className="sx-page">
+      {toastMessage && <div className="toast-notification">{toastMessage}</div>}
+
+      <div className="sx-head">
+        <h1>General Settings</h1>
+        <p>Manage your establishment details and system configuration</p>
       </div>
 
-      <div className="modern-grid-2">
-        {/* Store Information Card */}
-        <div className="modern-panel">
-          <div className="modern-panel-header">
-            <Store size={22} style={{ color: 'var(--primary)' }} />
-            Store Information
+      {/* Appearance */}
+      <div className="sx-group">
+        <div className="sx-group-head"><Palette size={14} /> Appearance</div>
+        <div className="theme-grid">
+          {THEMES.map((t) => (
+            <div
+              key={t.id}
+              onClick={() => setTheme(t.id)}
+              className={`theme-option ${theme === t.id ? 'active' : ''}`}
+            >
+              {theme === t.id && (
+                <div className="theme-option-check"><Check size={13} /></div>
+              )}
+              <div className="theme-option-preview">
+                <div style={{ backgroundColor: t.preview.bg }} />
+                <div style={{ backgroundColor: t.preview.panelBg }} />
+                <div style={{ backgroundColor: t.preview.headerBg }} />
+                <div style={{ backgroundColor: t.preview.accent }} />
+              </div>
+              <div className="theme-option-info">
+                <span className="theme-option-name">{t.label}</span>
+                <span className="theme-option-desc">{t.description}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+        {/* Store Information */}
+        <div className="sx-group">
+          <div className="sx-group-head"><Store size={14} /> Store Information</div>
+          <div className="sx-grid">
+            <div className="sx-field">
+              <label><Building2 size={13} /> Hotel Name</label>
+              <input type="text" name="hotel_name" value={settings.hotel_name} onChange={handleChange} placeholder="e.g. Grand Restaurant" className="sx-input" />
+            </div>
+            <div className="sx-field">
+              <label><Phone size={13} /> Phone Number</label>
+              <input type="text" name="phone_number" value={settings.phone_number} onChange={handleChange} placeholder="Contact number" className="sx-input" />
+            </div>
+            <div className="sx-field">
+              <label><Hash size={13} /> GST Number</label>
+              <input type="text" name="gst_number" value={settings.gst_number} onChange={handleChange} placeholder="GSTIN" className="sx-input" />
+            </div>
+            <div className="sx-field">
+              <label><FileText size={13} /> FSSAI Number</label>
+              <input type="text" name="fssai_number" value={settings.fssai_number} onChange={handleChange} placeholder="FSSAI License Number" className="sx-input" />
+            </div>
+            <div className="sx-field sx-span-full">
+              <label><MapPin size={13} /> Address</label>
+              <textarea name="address" value={settings.address} onChange={handleChange} placeholder="Complete address" rows={2} className="sx-textarea" />
+            </div>
           </div>
-          
-          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', flex: 1 }}>
-            <div className="modern-form-group">
-              <label className="modern-label">
-                <Building2 size={16} /> Hotel Name
-              </label>
-              <input
-                type="text"
-                name="hotel_name"
-                value={settings.hotel_name}
-                onChange={handleChange}
-                placeholder="e.g. Grand Restaurant"
-                className="modern-input"
-              />
-            </div>
-
-            <div className="modern-form-group">
-              <label className="modern-label">
-                <MapPin size={16} /> Address
-              </label>
-              <textarea
-                name="address"
-                value={settings.address}
-                onChange={handleChange}
-                placeholder="Complete address"
-                rows={3}
-                className="modern-input"
-                style={{ resize: 'vertical' }}
-              />
-            </div>
-
-            <div className="modern-grid-2">
-              <div className="modern-form-group">
-                <label className="modern-label">
-                  <Phone size={16} /> Phone Number
-                </label>
-                <input
-                  type="text"
-                  name="phone_number"
-                  value={settings.phone_number}
-                  onChange={handleChange}
-                  placeholder="Contact number"
-                  className="modern-input"
-                />
-              </div>
-              
-              <div className="modern-form-group">
-                <label className="modern-label">
-                  <Hash size={16} /> GST Number
-                </label>
-                <input
-                  type="text"
-                  name="gst_number"
-                  value={settings.gst_number}
-                  onChange={handleChange}
-                  placeholder="GSTIN"
-                  className="modern-input"
-                />
-              </div>
-            </div>
-
-            <div className="modern-form-group">
-              <label className="modern-label">
-                <FileText size={16} /> FSSAI Number
-              </label>
-              <input
-                type="text"
-                name="fssai_number"
-                value={settings.fssai_number}
-                onChange={handleChange}
-                placeholder="FSSAI License Number"
-                className="modern-input"
-              />
-            </div>
-
-            <div style={{ marginTop: '1rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-              <div className="modern-panel-header" style={{ marginBottom: '1rem', paddingBottom: '0', borderBottom: 'none' }}>
-                <Store size={18} style={{ color: 'var(--primary)' }} />
-                UPI Payment Settings
-              </div>
-              <div className="modern-form-group" style={{ marginBottom: '1rem' }}>
-                <label className="modern-label">UPI ID</label>
-                <input
-                  type="text"
-                  name="upi_id"
-                  value={settings.upi_id || ""}
-                  onChange={handleChange}
-                  placeholder="e.g. merchant@upi"
-                  className="modern-input"
-                />
-              </div>
-              <div className="modern-form-group" style={{ marginBottom: '1rem' }}>
-                <label className="modern-label">Merchant / Restaurant Name</label>
-                <input
-                  type="text"
-                  name="merchant_name"
-                  value={settings.merchant_name || ""}
-                  onChange={handleChange}
-                  placeholder="Name displayed to customer during payment"
-                  className="modern-input"
-                />
-              </div>
-              <div className="modern-form-group">
-                <label className="modern-label">Default Payment Reference (Optional)</label>
-                <input
-                  type="text"
-                  name="payment_reference"
-                  value={settings.payment_reference || ""}
-                  onChange={handleChange}
-                  placeholder="e.g. Bill Payment"
-                  className="modern-input"
-                />
-              </div>
-            </div>
-
-            <div style={{ marginTop: 'auto', paddingTop: '1.5rem' }}>
-              <button 
-                type="submit" 
-                disabled={saving}
-                className="modern-btn-primary"
-                style={{ width: '100%' }}
-              >
-                <Save size={18} />
-                {saving ? "Saving Changes..." : "Save Settings"}
-              </button>
-            </div>
-          </form>
         </div>
 
-        {/* System Settings Card */}
-        <div className="modern-panel" style={{ height: 'fit-content' }}>
-          <div className="modern-panel-header">
-            <HardDrive size={22} style={{ color: 'var(--primary)' }} />
-            System Configuration
-          </div>
-          
-          <div className="modern-form-group">
-            <label className="modern-label">
-              <FolderOpen size={16} /> Database Location
-            </label>
-            <div style={{ padding: '1.25rem', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: '1.5' }}>
-                Current Database Folder: <br />
-                <strong style={{ color: 'var(--text-primary)', wordBreak: 'break-all', fontSize: '0.95rem', display: 'block', marginTop: '0.5rem', fontFamily: 'monospace' }}>
-                  {dbFolderPath || "Not Selected"}
-                </strong>
-              </p>
-              <button 
-                onClick={handleChangeDbFolder}
-                className="modern-btn-primary"
-                style={{ width: '100%', backgroundColor: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)', boxShadow: 'none' }}
-                onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = 'var(--text-secondary)' }}
-                onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.borderColor = 'var(--border-color)' }}
-              >
-                <FolderOpen size={18} /> Change Folder
-              </button>
+        {/* UPI Payment */}
+        <div className="sx-group">
+          <div className="sx-group-head"><Store size={14} /> UPI Payment</div>
+          <div className="sx-grid cols-3">
+            <div className="sx-field">
+              <label>UPI ID</label>
+              <input type="text" name="upi_id" value={settings.upi_id || ""} onChange={handleChange} placeholder="e.g. merchant@upi" className="sx-input" />
             </div>
+            <div className="sx-field">
+              <label>Merchant / Restaurant Name</label>
+              <input type="text" name="merchant_name" value={settings.merchant_name || ""} onChange={handleChange} placeholder="Shown to customer" className="sx-input" />
+            </div>
+            <div className="sx-field">
+              <label>Payment Reference (Optional)</label>
+              <input type="text" name="payment_reference" value={settings.payment_reference || ""} onChange={handleChange} placeholder="e.g. Bill Payment" className="sx-input" />
+            </div>
+          </div>
+        </div>
+
+        <div className="sx-actions">
+          <button type="submit" disabled={saving} className="sx-btn-primary">
+            <Save size={16} />
+            {saving ? "Saving…" : "Save Settings"}
+          </button>
+        </div>
+      </form>
+
+      {/* System Configuration */}
+      <div className="sx-group">
+        <div className="sx-group-head"><HardDrive size={14} /> System Configuration</div>
+        <div className="sx-field">
+          <label><FolderOpen size={13} /> Database Location</label>
+          <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span className="sx-readonly" style={{ flex: 1, minWidth: '220px' }}>{dbFolderPath || "Not Selected"}</span>
+            <button onClick={handleChangeDbFolder} className="sx-btn-ghost" style={{ flexShrink: 0 }}>
+              <FolderOpen size={16} /> Change Folder
+            </button>
           </div>
         </div>
       </div>

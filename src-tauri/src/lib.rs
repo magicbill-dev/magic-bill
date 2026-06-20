@@ -60,18 +60,29 @@ async fn print_receipt_raw(printer_name: String, data: Vec<u8>) -> Result<String
             use std::ffi::CString;
             use std::ptr::null_mut;
             use winapi::shared::minwindef::{DWORD, FALSE, LPVOID};
+            use winapi::um::errhandlingapi::GetLastError;
             use winapi::um::winspool::{
                 ClosePrinter, EndDocPrinter, EndPagePrinter, OpenPrinterA, StartDocPrinterA,
                 StartPagePrinter, WritePrinter, DOC_INFO_1A,
             };
 
-            let p_name =
-                CString::new(printer_name).map_err(|_| "Invalid printer name".to_string())?;
+            let p_name = CString::new(printer_name.clone())
+                .map_err(|_| "Invalid printer name".to_string())?;
             let mut h_printer = null_mut();
 
             unsafe {
                 if OpenPrinterA(p_name.as_ptr() as *mut i8, &mut h_printer, null_mut()) == FALSE {
-                    return Err("Failed to open printer".to_string());
+                    let code = GetLastError();
+                    let hint = match code {
+                        1801 => " (printer name not found — re-select it in Printer Settings)",
+                        5 => " (access denied)",
+                        1722 | 1726 => " (print spooler/RPC unavailable — restart Print Spooler service)",
+                        _ => "",
+                    };
+                    return Err(format!(
+                        "Cannot connect to printer '{}': Win32 error {}{}",
+                        printer_name, code, hint
+                    ));
                 }
 
                 let doc_name = CString::new("EasyBill Receipt").unwrap();
@@ -108,7 +119,14 @@ async fn print_receipt_raw(printer_name: String, data: Vec<u8>) -> Result<String
                 ClosePrinter(h_printer);
 
                 if success == FALSE || bytes_written as usize != data.len() {
-                    return Err("Failed to write data to printer".to_string());
+                    let code = GetLastError();
+                    return Err(format!(
+                        "Connected, but failed to send data to '{}' (Win32 error {}, wrote {}/{} bytes)",
+                        printer_name,
+                        code,
+                        bytes_written,
+                        data.len()
+                    ));
                 }
 
                 return Ok("Printed successfully".to_string());
