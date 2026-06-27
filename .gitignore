@@ -54,3 +54,9 @@ src-tauri/gen/schemas/
 
 # TypeScript
 *.tsbuildinfo
+
+# One-off migration/debug scripts and backups (kept locally, not versioned)
+fix_*.cjs
+stitch.cjs
+original_account.tsx
+*.css_debug

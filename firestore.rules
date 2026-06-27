@@ -1,0 +1,51 @@
+rules_version = '2';
+
+// Magic Bill — one-desktop license enforcement.
+//
+// The desktop app reads a license by its document id (`users/{key}`) and binds
+// it to the current machine by writing a `device` map. These rules guarantee
+// the client can ONLY:
+//   1. claim an unbound license, or
+//   2. refresh the heartbeat of the device it already owns,
+// and can NEVER overwrite a device owned by another machine or modify the
+// subscription / profile fields. Transfers are done by you from the Firebase
+// console / Admin SDK, which bypass these rules.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{key} {
+
+      // The app reads ONE license by its exact key (document id). Listing /
+      // querying the whole collection is denied so nobody can scrape every
+      // customer's keys, emails and phone numbers.
+      allow get:  if true;
+      allow list: if false;
+
+      // Licenses are issued by your backend/console only — never by the app.
+      allow create, delete: if false;
+
+      allow update: if onlyDeviceChanged() && deviceBindingAllowed();
+
+      // The only top-level field the client may change is `device`.
+      function onlyDeviceChanged() {
+        return request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(['device']);
+      }
+
+      // A client may write `device` only when the license is unbound, or when
+      // it keeps the SAME device id it is already bound to (heartbeat refresh).
+      function deviceBindingAllowed() {
+        return !('device' in resource.data)
+            || resource.data.device == null
+            || !('id' in resource.data.device)
+            || resource.data.device.id == request.resource.data.device.id;
+      }
+    }
+
+    // Everything else is denied to clients (your backend / Admin SDK bypasses rules).
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

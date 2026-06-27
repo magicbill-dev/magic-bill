@@ -1,0 +1,38 @@
+======================================================
+MAGIC BILL - UI & THEME GUIDELINES
+======================================================
+
+1. SINGLE SOURCE OF TRUTH
+All theme variables, colors, sizing metrics, and common component styles are defined in `src/theme/theme.css`. Do NOT add hardcoded hex (`#FFFFFF`) or rgba/rgb values in the components.
+
+2. THEME SYSTEM
+The application supports multiple themes (Dark, Light, Blue).
+Themes are injected dynamically using CSS custom properties via the `data-theme` attribute on the `<html>` element.
+
+3. COLOR USAGE IN COMPONENTS
+Always use the CSS custom properties provided in the theme:
+- Backgrounds: `var(--bg-primary)`, `var(--bg-secondary)`, `var(--bg-tertiary)`, `var(--bg-inset)`
+- Text: `var(--text-primary)`, `var(--text-secondary)`, `var(--text-tertiary)`
+- Borders: `var(--border-color)`, `var(--border-subtle)`
+- Accents & Brands: `var(--primary)`, `var(--accent)`, `var(--info)`, `var(--success)`, `var(--warning)`, `var(--danger)`
+- Shadows: `var(--shadow-sm)`, `var(--shadow-md)`, `var(--shadow-lg)`
+- Utilities: `var(--radius-sm)`, `var(--radius-md)`, `var(--transition-base)`
+
+Example (React Inline Style):
+DO THIS:  `style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-secondary)' }}`
+NOT THIS: `style={{ backgroundColor: '#1e1e1e', color: '#999' }}`
+
+4. COMPONENT CSS
+If a component requires complex animations (like `@keyframes`) or pseudo-classes (`:hover`, `:focus`), do NOT use inline `<style>` tags inside the JSX.
+Instead, add those specific classes to `src/theme/components.css` or use the global utility classes.
+
+5. GLOBAL STYLES (App.css)
+`App.css` handles structural layout constraints, the main App container layout, sidebar toggling layout, etc. Do not put theme color variables here.
+
+6. ADDING A NEW THEME
+To add a new theme (e.g., "Neon"):
+A. In `src/theme/theme.css`: Add a new block `[data-theme="neon"] { ... }` and define all necessary color variables.
+B. In `src/theme/ThemeContext.tsx`: Update the `THEMES` array with the new theme object (id: 'neon', label: 'Neon Theme', etc.).
+
+By adhering strictly to these guidelines, any new components added by AI agents or developers will automatically inherit the active theme seamlessly.
+\n\n## CORE UI/UX INFRASTRUCTURE (Added v0.2.3)\nTo ensure a unified, premium user experience, all hardcoded sizes, spacings, borders, and typography have been migrated to CSS custom properties defined in :root inside 	heme.css.\n\n### Typography\n- Use ar(--font-sans) for primary fonts (Inter).\n- Font sizes: ar(--text-xs) to ar(--text-3xl).\n- Font weights: ar(--font-normal), ar(--font-medium), ar(--font-semibold), ar(--font-bold).\n\n### Spacing & Layout\n- Use spacing tokens for padding, margins, and gaps: ar(--space-1) (4px) to ar(--space-12) (48px).\n\n### Borders & Radius\n- Border width: ar(--border-thin) (1px) or ar(--border-thick) (2px).\n- Border radii: ar(--radius-xs) to ar(--radius-2xl).\n\n### Usage Rule\n**NEVER** hardcode values like px solid #ddd or padding: 1rem in components. ALWAYS use the CSS variables defined in 	heme.css (e.g., order: var(--border-thin) solid var(--border-color);). This ensures that the application scales and adapts seamlessly if a new theme is introduced.
