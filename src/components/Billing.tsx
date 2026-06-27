@@ -88,10 +88,20 @@ export default function Billing({ db }: BillingProps) {
   const [activeTokenNumber, setActiveTokenNumber] = useState<number | null>(null);
   const [activeBillNumber, setActiveBillNumber] = useState<string | null>(null);
   const [orderType, setOrderType] = useState<"Table" | "Parcel" | "Self Service">("Self Service");
+  // When locked, the order type can only be changed with the mouse (keyboard
+  // Left/Right arrows are ignored) — prevents accidental switching while billing.
+  const [orderTypeLocked, setOrderTypeLocked] = useState<boolean>(() => localStorage.getItem('orderTypeLocked') === 'true');
+  // The order type the lock is pinned to — new orders default to this tab while locked.
+  const [lockedOrderType, setLockedOrderType] = useState<"Table" | "Parcel" | "Self Service">(() => {
+    const v = localStorage.getItem('lockedOrderType');
+    return (v === 'Table' || v === 'Parcel' || v === 'Self Service') ? v : 'Self Service';
+  });
   const [tableNumber, setTableNumber] = useState("");
   const [isTablePopupOpen, setIsTablePopupOpen] = useState(false);
   const [isAlphabetPopupOpen, setIsAlphabetPopupOpen] = useState(false);
   const [selectedAlphabetIndex, setSelectedAlphabetIndex] = useState(0);
+  // Set to true to print the KOT after a merge-into-existing-order, once state has committed
+  const [pendingMergePrint, setPendingMergePrint] = useState(false);
   const [isKotConfirmPopupOpen, setIsKotConfirmPopupOpen] = useState(false);
   const [isBillConfirmPopupOpen, setIsBillConfirmPopupOpen] = useState(false);
   const [billSettings, setBillSettings] = useState<any>(null);
@@ -296,14 +306,17 @@ export default function Billing({ db }: BillingProps) {
     }
 
     const searchLower = searchTerm.toLowerCase();
+    const matchMode = billSettings?.search_match_mode || "starts";
     const filtered = allItems.filter(item => {
       const nameLower = item.name.toLowerCase();
-      return nameLower.startsWith(searchLower);
+      return matchMode === "contains"
+        ? nameLower.includes(searchLower)
+        : nameLower.startsWith(searchLower);
     }).slice(0, 10); // Limit to 10 suggestions
 
     setSuggestions(filtered);
     setSelectedSuggestionIndex(filtered.length > 0 ? 0 : -1);
-  }, [searchTerm, allItems]);
+  }, [searchTerm, allItems, billSettings]);
 
   useEffect(() => {
     if (isQtyPopupOpen) {
@@ -869,6 +882,10 @@ export default function Billing({ db }: BillingProps) {
     setIsKOTPrinted(false);
     setBillingType("Cash");
     setSelectedCustomerId(null);
+    // When locked, new orders always return to the pinned order type.
+    if (orderTypeLocked) {
+      setOrderType(lockedOrderType);
+    }
     setTimeout(() => searchInputRef.current?.focus(), 0);
   };
 
@@ -927,10 +944,10 @@ export default function Billing({ db }: BillingProps) {
 
       if (isInput) return;
 
-      if (e.key === "ArrowLeft") {
+      if (!orderTypeLocked && e.key === "ArrowLeft") {
         e.preventDefault();
         cycleOrderType("left");
-      } else if (e.key === "ArrowRight") {
+      } else if (!orderTypeLocked && e.key === "ArrowRight") {
         e.preventDefault();
         cycleOrderType("right");
       }
@@ -952,7 +969,7 @@ export default function Billing({ db }: BillingProps) {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [processingOrders, activeOrderId, isQtyPopupOpen, isTablePopupOpen, isAlphabetPopupOpen, isKotConfirmPopupOpen, isBillConfirmPopupOpen, orderType, isAddCustomerPopupOpen]);
+  }, [processingOrders, activeOrderId, isQtyPopupOpen, isTablePopupOpen, isAlphabetPopupOpen, isKotConfirmPopupOpen, isBillConfirmPopupOpen, orderType, orderTypeLocked, lockedOrderType, isAddCustomerPopupOpen]);
 
   useEffect(() => {
     const handleGlobalClick = (e: MouseEvent) => {
@@ -989,12 +1006,12 @@ export default function Billing({ db }: BillingProps) {
       return;
     }
 
-    if (e.key === "ArrowLeft") {
+    if (e.key === "ArrowLeft" && !orderTypeLocked) {
       e.preventDefault();
       cycleOrderType("left");
       return;
     }
-    if (e.key === "ArrowRight") {
+    if (e.key === "ArrowRight" && !orderTypeLocked) {
       e.preventDefault();
       cycleOrderType("right");
       return;
@@ -1383,7 +1400,8 @@ export default function Billing({ db }: BillingProps) {
     }
   };
 
-  const ALPHABETS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  // 'A' is reserved for the existing/base order (shown in its place); new sub-tables start at 'B'
+  const ALPHABETS = ['B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
   const handleTableConfirm = () => {
     const trimmedTable = tableNumber.trim();
@@ -1397,10 +1415,8 @@ export default function Billing({ db }: BillingProps) {
     if (isOccupied && !activeOrderId) {
         setIsAlphabetPopupOpen(true);
         setIsTablePopupOpen(false);
-        const firstAvailableIndex = ALPHABETS.findIndex(alpha => !processingOrders.some(
-            o => o.order_type === 'Table' && String(o.table_number).toUpperCase() === `${trimmedTable}${alpha}`
-        ));
-        setSelectedAlphabetIndex(firstAvailableIndex !== -1 ? firstAvailableIndex : 0);
+        // Focus the existing table-number cell first (index 0); arrow keys move into the letters
+        setSelectedAlphabetIndex(0);
         return;
     }
 
@@ -1415,6 +1431,79 @@ export default function Billing({ db }: BillingProps) {
     handlePrintKOT(newTableNum);
   };
 
+  // Orders already in processing for the typed table number (e.g. "6", "6A", "6B")
+  const getOccupiedOrdersForTable = (table: string): ProcessingOrder[] => {
+    const trimmed = table.trim();
+    if (!trimmed) return [];
+    return processingOrders
+      .filter(o => o.order_type === 'Table' && o.table_number &&
+        new RegExp(`^${trimmed}[A-Z]?$`).test(String(o.table_number)))
+      .sort((a, b) => String(a.table_number).localeCompare(String(b.table_number)));
+  };
+
+  // Merge the current cart's (new) items into an existing processing order and
+  // print only the newly added items as a KOT.
+  const handleMergeIntoOrder = (order: ProcessingOrder) => {
+    try {
+      const existingCart = JSON.parse(order.cart_data) as CartItem[];
+      const newItems = [...cart];
+
+      // Build merged cart: existing items + newly added quantities
+      const merged: CartItem[] = existingCart.map(i => ({ ...i }));
+      newItems.forEach(ni => {
+        const found = merged.find(mi => mi.id === ni.id);
+        if (found) {
+          found.quantity += ni.quantity;
+        } else {
+          merged.push({ ...ni });
+        }
+      });
+
+      // Restore the existing order's context so the update/delta logic applies.
+      // originalCart = the existing items, so only the new items print on the KOT.
+      setOriginalCart(existingCart);
+      setCart(merged);
+      setCustomerName(order.customer_name || "");
+      setCustomerPhone(order.customer_phone || "");
+
+      if (order.payment_mode === "Credit") {
+        setBillingType("Credit");
+        setPaymentMode("Cash");
+        setSelectedCustomerId((order as any).customer_id || null);
+      } else {
+        setBillingType("Cash");
+        setPaymentMode(order.payment_mode || "Cash");
+        setSelectedCustomerId(null);
+      }
+
+      setOrderType((order.order_type as "Table" | "Parcel" | "Self Service") || "Table");
+      setTableNumber(order.table_number || "");
+      setActiveOrderId(order.id);
+      setActiveTokenNumber(order.token_number || null);
+      setActiveBillNumber(order.bill_number || null);
+      setIsKOTPrinted(true);
+
+      setIsAlphabetPopupOpen(false);
+      setIsTablePopupOpen(false);
+
+      // Defer printing until the above state updates have committed so that
+      // executePrintKOT reads the merged cart / active order.
+      setPendingMergePrint(true);
+    } catch (e) {
+      console.error("Failed to merge into processing order", e);
+      setToastMessage("Failed to add to existing order.");
+    }
+  };
+
+  // Fires the KOT print once a merge has updated cart/originalCart/activeOrderId state.
+  useEffect(() => {
+    if (pendingMergePrint) {
+      setPendingMergePrint(false);
+      handlePrintKOT(tableNumber);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingMergePrint]);
+
   const handleTablePopupKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -1426,32 +1515,47 @@ export default function Billing({ db }: BillingProps) {
     }
   };
 
+  // The popup grid cells are: [existing order(s)..., then letters B..H].
+  // selectedAlphabetIndex is the index across this combined list.
+  // Confirm the cell at the current index: merge into an existing order, or open a new sub-table.
+  const confirmSelectedCell = () => {
+    const occupied = getOccupiedOrdersForTable(tableNumber);
+    const idx = selectedAlphabetIndex;
+    if (idx < occupied.length) {
+      handleMergeIntoOrder(occupied[idx]);
+      return;
+    }
+    const alpha = ALPHABETS[idx - occupied.length];
+    if (!alpha) return;
+    const isOccupied = processingOrders.some(
+      o => o.order_type === 'Table' && String(o.table_number).toUpperCase() === `${tableNumber.trim()}${alpha}`
+    );
+    if (!isOccupied) {
+      handleAlphabetConfirm(alpha);
+    }
+  };
+
   const handleAlphabetPopupKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const totalCells = getOccupiedOrdersForTable(tableNumber).length + ALPHABETS.length;
     if (e.key === 'Enter') {
       e.preventDefault();
-      const alpha = ALPHABETS[selectedAlphabetIndex];
-      const isOccupied = processingOrders.some(
-        o => o.order_type === 'Table' && String(o.table_number).toUpperCase() === `${tableNumber.trim()}${alpha}`
-      );
-      if (!isOccupied) {
-        handleAlphabetConfirm(alpha);
-      }
+      confirmSelectedCell();
     } else if (e.key === 'Escape') {
       e.preventDefault();
       setIsAlphabetPopupOpen(false);
       setIsTablePopupOpen(true); // Go back to table number input
     } else if (e.key === 'ArrowRight') {
       e.preventDefault();
-      setSelectedAlphabetIndex(prev => (prev + 1) % ALPHABETS.length);
+      setSelectedAlphabetIndex(prev => (prev + 1) % totalCells);
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      setSelectedAlphabetIndex(prev => (prev - 1 + ALPHABETS.length) % ALPHABETS.length);
+      setSelectedAlphabetIndex(prev => (prev - 1 + totalCells) % totalCells);
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedAlphabetIndex(prev => (prev + 4) % ALPHABETS.length); // 4 columns
+      setSelectedAlphabetIndex(prev => (prev + 4) % totalCells); // 4 columns
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedAlphabetIndex(prev => (prev - 4 + ALPHABETS.length) % ALPHABETS.length);
+      setSelectedAlphabetIndex(prev => (prev - 4 + totalCells) % totalCells);
     }
   };
 
@@ -1575,52 +1679,80 @@ export default function Billing({ db }: BillingProps) {
       </div>
 
       {/* Processing Orders Sidebar */}
-      <div className="processing-orders-sidebar" style={{ width: '416px', minWidth: '416px', flexShrink: 0, border: 'var(--border-thin) solid var(--border-color)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', padding: 'var(--space-4)', gap: 'var(--space-4)', background: 'var(--bg-white)' }}>
-        <div className="processing-orders-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontWeight: 'var(--font-semibold)', fontSize: 'var(--text-lg)', color: 'var(--text-primary)' }}>
-            <ListTodo size={20} /> Processing Orders
+      <div className="processing-orders-sidebar" style={{ width: '416px', minWidth: '416px', flexShrink: 0, border: 'var(--border-thin) solid var(--border-color)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', background: 'var(--bg-white)' }}>
+        <div className="po-header">
+          <div className="po-title-row">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 'var(--font-bold)', fontSize: 'var(--text-sm)', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)' }}>
+              <ListTodo size={15} /> Processing Orders
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <button
+                type="button"
+                className={`ot-toggle ${orderTypeLocked ? 'on' : ''}`}
+                onClick={() => {
+                  setOrderTypeLocked(prev => {
+                    const next = !prev;
+                    localStorage.setItem('orderTypeLocked', String(next));
+                    if (next) {
+                      // Pin the lock to whichever tab is currently selected.
+                      setLockedOrderType(orderType);
+                      localStorage.setItem('lockedOrderType', orderType);
+                    }
+                    return next;
+                  });
+                }}
+                title={orderTypeLocked
+                  ? `Lock: ON — pinned to "${lockedOrderType}". New orders start here; arrow keys ← → disabled. Click to turn off.`
+                  : 'Lock: OFF — arrow keys ← → switch order type. Click to lock the current tab for new orders.'}
+                aria-pressed={orderTypeLocked}
+                aria-label="Lock keyboard movement"
+              />
+              <button
+                onClick={startNewOrder}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.4rem',
+                  background: 'var(--primary)', color: 'var(--primary-fg)',
+                  border: 'none', borderRadius: '2rem',
+                  padding: '0.4rem 0.8rem', cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: 'var(--font-bold)',
+                  transition: 'transform 0.1s ease-in-out, box-shadow 0.1s', boxShadow: 'var(--shadow-sm)'
+                }}
+                title="Press Esc to start a new order"
+                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                onMouseDown={e => e.currentTarget.style.transform = 'translateY(1px)'}
+                onMouseUp={e => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                <Plus size={16} /> New <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 'var(--font-medium)' }}>(Esc)</span>
+              </button>
+            </div>
           </div>
-          <button 
-            onClick={startNewOrder}
-            style={{ 
-              display: 'flex', alignItems: 'center', gap: '0.4rem', 
-              background: 'var(--primary)', color: 'var(--primary-fg)', 
-              border: 'none', borderRadius: '2rem', 
-              padding: '0.4rem 0.8rem', cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: 'var(--font-bold)',
-              transition: 'transform 0.1s ease-in-out, box-shadow 0.1s', boxShadow: 'var(--shadow-sm)' 
-            }}
-            title="Press Esc to start a new order"
-            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-            onMouseDown={e => e.currentTarget.style.transform = 'translateY(1px)'}
-            onMouseUp={e => e.currentTarget.style.transform = 'translateY(0)'}
-          >
-            <Plus size={16} /> New <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 'var(--font-medium)' }}>(Esc)</span>
-          </button>
-        </div>
-        
-        <div className="order-type-selection" style={{ 
-          display: 'flex', 
-          gap: '0.4rem', 
-          padding: '1rem 0',
-          margin: '0',
-          borderTop: 'var(--border-thin) solid var(--border-color)',
-          borderBottom: 'var(--border-thin) solid var(--border-color)'
-        }}>
-          {["Self Service", "Table", "Parcel"].map(type => (
-            <button
-              key={type}
-              onClick={() => setOrderType(type as any)}
-              className={`modern-tab-btn ${orderType === type ? 'active' : ''}`}
-            >
-              {type}
-            </button>
-          ))}
+
+          <div className="ot-seg" role="tablist" aria-label="Order type">
+            {["Self Service", "Table", "Parcel"].map(type => (
+              <button
+                key={type}
+                role="tab"
+                aria-selected={orderType === type}
+                onClick={() => {
+                  setOrderType(type as any);
+                  // While locked, mouse-selecting a tab re-pins the lock to it.
+                  if (orderTypeLocked) {
+                    setLockedOrderType(type as any);
+                    localStorage.setItem('lockedOrderType', type);
+                  }
+                }}
+                className={`ot-seg-btn ${orderType === type ? 'active' : ''}`}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+
         </div>
 
-        <div className="processing-orders-list" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.25rem' }}>
+        <div className="processing-orders-list" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: 'var(--space-4)' }}>
           {processingOrders.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-primary)', opacity: 0.8, fontSize: 'var(--text-base)' }}>
+            <div style={{ textAlign: 'center', padding: '3rem 1rem 1rem', color: 'var(--text-secondary)', fontSize: 'var(--text-base)' }}>
               No active orders.
             </div>
           ) : (
@@ -1745,15 +1877,42 @@ export default function Billing({ db }: BillingProps) {
           >
             <h3 style={{ marginBottom: 'var(--space-4)' }}>Table Occupied</h3>
             <p style={{ marginBottom: 'var(--space-4)', fontSize: 'var(--text-base)', color: 'var(--text-secondary)' }}>
-              Select a sub-table identifier for table {tableNumber}
+              Select a sub-table identifier for table {tableNumber.trim()}
             </p>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(4, 1fr)', 
-              gap: 'var(--space-2)', 
-              marginBottom: 'var(--space-6)' 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: 'var(--space-2)',
+              marginBottom: 'var(--space-6)'
             }}>
+              {/* Existing order(s) take the place of 'A' — clicking adds the new items to that order */}
+              {getOccupiedOrdersForTable(tableNumber).map((order, occIndex) => {
+                const isSelected = occIndex === selectedAlphabetIndex;
+                return (
+                  <div
+                    key={`occ-${order.id}`}
+                    onClick={() => handleMergeIntoOrder(order)}
+                    onMouseEnter={() => setSelectedAlphabetIndex(occIndex)}
+                    title={`Add new items to table ${order.table_number}`}
+                    style={{
+                      padding: '0.75rem',
+                      textAlign: 'center',
+                      border: 'var(--border-thin) solid var(--primary)',
+                      borderRadius: 'var(--radius-md)',
+                      cursor: 'pointer',
+                      background: isSelected ? 'var(--primary)' : 'var(--bg-white)',
+                      color: isSelected ? 'var(--primary-fg)' : 'var(--primary)',
+                      fontWeight: 'bold',
+                      boxShadow: isSelected ? '0 0 0 2px var(--primary) inset' : 'none'
+                    }}
+                  >
+                    {order.table_number}
+                  </div>
+                );
+              })}
               {ALPHABETS.map((alpha, index) => {
+                const cellIndex = getOccupiedOrdersForTable(tableNumber).length + index;
+                const isSelected = cellIndex === selectedAlphabetIndex;
                 const isOccupied = processingOrders.some(
                   o => o.order_type === 'Table' && String(o.table_number).toUpperCase() === `${tableNumber.trim()}${alpha}`
                 );
@@ -1761,17 +1920,17 @@ export default function Billing({ db }: BillingProps) {
                   <div
                     key={alpha}
                     onClick={() => { if (!isOccupied) handleAlphabetConfirm(alpha); }}
-                    onMouseEnter={() => { if (!isOccupied) setSelectedAlphabetIndex(index); }}
+                    onMouseEnter={() => { if (!isOccupied) setSelectedAlphabetIndex(cellIndex); }}
                     style={{
                       padding: '0.75rem',
                       textAlign: 'center',
                       border: 'var(--border-thin) solid var(--border-color)',
                       borderRadius: 'var(--radius-md)',
                       cursor: isOccupied ? 'not-allowed' : 'pointer',
-                      background: isOccupied ? 'var(--bg-inset)' : (index === selectedAlphabetIndex ? 'var(--primary)' : 'var(--bg-white)'),
-                      color: isOccupied ? 'var(--text-secondary)' : (index === selectedAlphabetIndex ? 'var(--primary-fg)' : 'var(--text-primary)'),
-                      fontWeight: index === selectedAlphabetIndex && !isOccupied ? 'bold' : 'normal',
-                      boxShadow: index === selectedAlphabetIndex && !isOccupied ? '0 0 0 2px var(--primary) inset' : 'none',
+                      background: isOccupied ? 'var(--bg-inset)' : (isSelected ? 'var(--primary)' : 'var(--bg-white)'),
+                      color: isOccupied ? 'var(--text-secondary)' : (isSelected ? 'var(--primary-fg)' : 'var(--text-primary)'),
+                      fontWeight: isSelected && !isOccupied ? 'bold' : 'normal',
+                      boxShadow: isSelected && !isOccupied ? '0 0 0 2px var(--primary) inset' : 'none',
                       opacity: isOccupied ? 0.4 : 1
                     }}
                   >
@@ -1780,28 +1939,21 @@ export default function Billing({ db }: BillingProps) {
                 );
               })}
             </div>
-            <button 
-              className="btn-add-to-cart" 
-              onClick={() => {
-                const alpha = ALPHABETS[selectedAlphabetIndex];
-                const isOccupied = processingOrders.some(
-                  o => o.order_type === 'Table' && String(o.table_number).toUpperCase() === `${tableNumber.trim()}${alpha}`
-                );
-                if (!isOccupied) {
-                   handleAlphabetConfirm(alpha);
-                }
-              }}
-              style={{
-                opacity: processingOrders.some(
-                  o => o.order_type === 'Table' && String(o.table_number).toUpperCase() === `${tableNumber.trim()}${ALPHABETS[selectedAlphabetIndex]}`
-                ) ? 0.5 : 1,
-                cursor: processingOrders.some(
-                  o => o.order_type === 'Table' && String(o.table_number).toUpperCase() === `${tableNumber.trim()}${ALPHABETS[selectedAlphabetIndex]}`
-                ) ? 'not-allowed' : 'pointer'
-              }}
-            >
-              Confirm {ALPHABETS[selectedAlphabetIndex]}
-            </button>
+            {(() => {
+              const occupied = getOccupiedOrdersForTable(tableNumber);
+              const isExistingCell = selectedAlphabetIndex < occupied.length;
+              const selectedLabel = isExistingCell
+                ? occupied[selectedAlphabetIndex]?.table_number
+                : ALPHABETS[selectedAlphabetIndex - occupied.length];
+              return (
+                <button
+                  className="btn-add-to-cart"
+                  onClick={confirmSelectedCell}
+                >
+                  {isExistingCell ? `Add to ${selectedLabel}` : `Confirm ${selectedLabel}`}
+                </button>
+              );
+            })()}
             <button className="popup-close-btn" onClick={() => { setIsAlphabetPopupOpen(false); setIsTablePopupOpen(true); }}>
               <X size={20} />
             </button>
