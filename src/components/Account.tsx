@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { firestore } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { getDeviceInfo } from '../device';
 import Database from "@tauri-apps/plugin-sql";
 import {
   ShieldCheck, LogOut, RefreshCw, UserCircle, KeyRound,
@@ -21,6 +22,9 @@ export default function Account({ db }: AccountProps) {
   const [error, setError] = useState('');
   const [subDetails, setSubDetails] = useState<any>(null);
   const [userDetails, setUserDetails] = useState<any>(null);
+  const [deviceInfo, setDeviceInfo] = useState<{ id: string; name: string } | null>(null);
+
+  useEffect(() => { getDeviceInfo().then(setDeviceInfo).catch(() => {}); }, []);
 
   useEffect(() => {
     if (db) {
@@ -53,6 +57,45 @@ export default function Account({ db }: AccountProps) {
       const userDoc = await getDoc(userDocRef);
       if (userDoc.exists()) {
         const data = userDoc.data();
+
+        // ── One-desktop license enforcement ────────────────────────────
+        // Bind this license to the current machine. If it is already bound
+        // to a different device, refuse activation (hard block).
+        const device = await getDeviceInfo();
+        const boundDevice = data.device;
+        const nowIso = new Date().toISOString();
+
+        if (!boundDevice || !boundDevice.id) {
+          // Unbound license → claim it for this device.
+          try {
+            await updateDoc(userDocRef, {
+              device: {
+                id: device.id,
+                name: device.name,
+                platform: 'windows',
+                boundAt: nowIso,
+                lastSeen: nowIso,
+              },
+            });
+          } catch (bindErr: any) {
+            console.error('Failed to bind device:', bindErr);
+            setError('Could not register this device. Please check your internet connection and try again.');
+            if (licenseKey === keyToVerify) handleLogout();
+            return;
+          }
+        } else if (boundDevice.id === device.id) {
+          // Same device → just refresh the heartbeat.
+          try { await updateDoc(userDocRef, { 'device.lastSeen': nowIso }); } catch (e) {}
+        } else {
+          // Bound to a different machine → block.
+          setError(
+            `This license is already active on another device (${boundDevice.name || 'Unknown PC'}). ` +
+            `Only one desktop can use a key at a time. To move it to this PC, contact support.`
+          );
+          if (licenseKey === keyToVerify) handleLogout();
+          return;
+        }
+
         const sub = data.subscription || {};
         const userInfo = {
           displayName: data.displayName || '',
@@ -465,9 +508,11 @@ export default function Account({ db }: AccountProps) {
           <ShieldCheck size={22} color="var(--success)" />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Device Authenticated</div>
+          <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+            Device Locked {deviceInfo?.name ? `· ${deviceInfo.name}` : ''}
+          </div>
           <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-            This Magic Bill instance is securely linked to your account.
+            This license is locked to this desktop only. One key works on a single device at a time.
           </div>
         </div>
         <div style={{
@@ -476,8 +521,8 @@ export default function Account({ db }: AccountProps) {
           background: 'var(--bg-inset)', borderRadius: 'var(--radius-md)',
           border: '1px solid var(--border-subtle)', maxWidth: 220,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-        }} title={licenseKey}>
-          {licenseKey.slice(0, 24)}…
+        }} title={deviceInfo?.id || licenseKey}>
+          {(deviceInfo?.id || licenseKey).slice(0, 24)}…
         </div>
       </div>
 

@@ -240,6 +240,103 @@ async fn print_receipt_text(printer_name: String, text: String) -> Result<String
     .unwrap_or_else(|e| Err(format!("Task panicked: {}", e)))
 }
 
+#[derive(serde::Serialize)]
+struct DeviceInfo {
+    id: String,
+    name: String,
+}
+
+/// Reject well-known blank / placeholder SMBIOS UUIDs that some OEM and
+/// whitebox machines report instead of a real per-machine value.
+#[cfg(target_os = "windows")]
+fn is_valid_hw_id(id: &str) -> bool {
+    if id.is_empty() {
+        return false;
+    }
+    let upper = id.to_uppercase();
+    let bad = [
+        "00000000-0000-0000-0000-000000000000",
+        "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
+        "03000200-0400-0500-0006-000700080009",
+    ];
+    !bad.contains(&upper.as_str())
+}
+
+/// Returns a stable hardware-bound device identifier used for one-desktop
+/// licensing. Primary source is the motherboard SMBIOS UUID (survives an OS
+/// reinstall), falling back to the first physical adapter MAC address.
+#[tauri::command]
+async fn get_device_id() -> DeviceInfo {
+    tauri::async_runtime::spawn_blocking(|| {
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            use std::process::Command;
+
+            let name =
+                std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Unknown PC".to_string());
+
+            // Primary: SMBIOS hardware UUID (firmware-bound, survives OS reinstall).
+            let uuid = Command::new("powershell")
+                .args([
+                    "-NoProfile",
+                    "-Command",
+                    "(Get-CimInstance -ClassName Win32_ComputerSystemProduct).UUID",
+                ])
+                .creation_flags(0x08000000)
+                .output();
+
+            if let Ok(output) = uuid {
+                let id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if is_valid_hw_id(&id) {
+                    return DeviceInfo {
+                        id: format!("HWID-{}", id.to_uppercase()),
+                        name,
+                    };
+                }
+            }
+
+            // Fallback: first physical network adapter MAC address.
+            let mac = Command::new("powershell")
+                .args([
+                    "-NoProfile",
+                    "-Command",
+                    "(Get-CimInstance Win32_NetworkAdapter -Filter 'PhysicalAdapter=True AND MACAddress IS NOT NULL' | Sort-Object DeviceID | Select-Object -First 1).MACAddress",
+                ])
+                .creation_flags(0x08000000)
+                .output();
+
+            if let Ok(output) = mac {
+                let id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !id.is_empty() {
+                    return DeviceInfo {
+                        id: format!("MAC-{}", id.to_uppercase().replace(':', "-")),
+                        name,
+                    };
+                }
+            }
+
+            return DeviceInfo {
+                id: "UNKNOWN-DEVICE".to_string(),
+                name,
+            };
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            DeviceInfo {
+                id: "UNKNOWN-DEVICE".to_string(),
+                name: "Unknown PC".to_string(),
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|_| DeviceInfo {
+        id: "UNKNOWN-DEVICE".to_string(),
+        name: "Unknown PC".to_string(),
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -252,7 +349,8 @@ pub fn run() {
             greet,
             get_printers,
             print_receipt_raw,
-            print_receipt_text
+            print_receipt_text,
+            get_device_id
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

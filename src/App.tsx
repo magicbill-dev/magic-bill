@@ -34,7 +34,8 @@ import Billing from "./components/Billing";
 import Reports from "./components/Reports";
 import Account from "./components/Account";
 import { firestore } from "./firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { getDeviceInfo } from "./device";
 import "./App.css";
 
 function App() {
@@ -271,6 +272,7 @@ function App() {
         await addColumn('bill_settings', 'dynamic_upi_qr', 'BOOLEAN', "0");
         await addColumn('bill_settings', 'static_upi_qr', 'BOOLEAN', "0");
         await addColumn('bill_settings', 'no_qr_print', 'BOOLEAN', "1");
+        await addColumn('bill_settings', 'search_match_mode', 'TEXT', "'starts'");
 
         await dbInstance.execute(`
           CREATE TABLE IF NOT EXISTS kot_settings (
@@ -401,8 +403,22 @@ function App() {
           const userDoc = await getDoc(userDocRef);
           if (userDoc.exists()) {
             const data = userDoc.data();
+
+            // ── Verify this device still owns the license ────────────────
+            // If the binding was transferred (e.g. reset by support and
+            // claimed on another PC), lock this device back to activation.
+            const device = await getDeviceInfo();
+            const boundDevice = data.device;
+            if (boundDevice && boundDevice.id && boundDevice.id !== device.id) {
+              localStorage.removeItem('magicbill_license_key');
+              await db.execute('UPDATE subscription SET status="", planId="", subscriptionId="", nextBillingDate="", updatedAt="" WHERE id=1');
+              return;
+            }
+            // Refresh heartbeat for the owning device.
+            try { await updateDoc(userDocRef, { 'device.lastSeen': new Date().toISOString() }); } catch (e) {}
+
             const sub = data.subscription || {};
-            
+
             // Sync to SQLite
             await db.execute(
               `UPDATE subscription SET 

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import Database from "@tauri-apps/plugin-sql";
 import { invoke } from "@tauri-apps/api/core";
 import QRCode from "qrcode";
-import { Download, Printer, Calendar as CalendarIcon, TrendingUp, Package, Users, Receipt, Eye, Edit2, Trash2, X, PlusCircle } from "lucide-react";
+import { Download, Printer, Calendar as CalendarIcon, TrendingUp, Package, Users, Receipt, Eye, Edit2, Trash2, X, PlusCircle, BarChart3, ShoppingBag, Wallet, Award, CheckCircle2 } from "lucide-react";
 
 interface ReportsProps {
   db: Database | null;
@@ -178,7 +178,7 @@ export default function Reports({ db }: ReportsProps) {
       const startDate = `${dateRange.start} 00:00:00`;
       const endDate = `${dateRange.end} 23:59:59`;
 
-      if (activeMainTab === "Sales Overview" || activeMainTab === "Recent Bills") {
+      if (activeMainTab === "Sales Overview") {
         const cats = await db.select<Category[]>("SELECT * FROM categories");
         const catMap: Record<number, string> = {};
         cats.forEach(c => catMap[c.id] = c.name);
@@ -344,23 +344,101 @@ export default function Reports({ db }: ReportsProps) {
   };
 
   // --- REPORT CALCULATIONS ---
-  const calculateSalesSummary = () => {
+  // Rich analytics computed once per orders/expenses change.
+  const salesStats = useMemo(() => {
     let totalRevenue = 0;
+    let grossSales = 0;
     let totalGst = 0;
-    const paymentBreakdown = { Cash: 0, Card: 0, UPI: 0, Credit: 0 } as Record<string, number>;
-    const typeBreakdown = { "Self Service": 0, "Table": 0, "Parcel": 0 } as Record<string, number>;
+    let totalItemsSold = 0;
+    const paymentBreakdown = { Cash: { amount: 0, count: 0 }, Card: { amount: 0, count: 0 }, UPI: { amount: 0, count: 0 }, Credit: { amount: 0, count: 0 } } as Record<string, { amount: number; count: number }>;
+    const typeBreakdown = { "Self Service": { amount: 0, count: 0 }, "Table": { amount: 0, count: 0 }, "Parcel": { amount: 0, count: 0 } } as Record<string, { amount: number; count: number }>;
+    const itemAgg: Record<string, { qty: number; total: number }> = {};
+    const dayAgg: Record<string, { orders: number; gross: number; gst: number; total: number }> = {};
 
     orders.forEach(order => {
       totalRevenue += order.total;
+      grossSales += order.subtotal;
       totalGst += order.gst;
-      paymentBreakdown[order.payment_mode] = (paymentBreakdown[order.payment_mode] || 0) + order.total;
-      typeBreakdown[order.order_type] = (typeBreakdown[order.order_type] || 0) + order.total;
+
+      const pm = order.payment_mode || "Cash";
+      if (!paymentBreakdown[pm]) paymentBreakdown[pm] = { amount: 0, count: 0 };
+      paymentBreakdown[pm].amount += order.total;
+      paymentBreakdown[pm].count += 1;
+
+      const ot = order.order_type || "Self Service";
+      if (!typeBreakdown[ot]) typeBreakdown[ot] = { amount: 0, count: 0 };
+      typeBreakdown[ot].amount += order.total;
+      typeBreakdown[ot].count += 1;
+
+      const dayKey = (order.created_at || "").split("T")[0] || order.created_at;
+      if (!dayAgg[dayKey]) dayAgg[dayKey] = { orders: 0, gross: 0, gst: 0, total: 0 };
+      dayAgg[dayKey].orders += 1;
+      dayAgg[dayKey].gross += order.subtotal;
+      dayAgg[dayKey].gst += order.gst;
+      dayAgg[dayKey].total += order.total;
+
+      try {
+        const cart = JSON.parse(order.cart_data);
+        cart.forEach((item: any) => {
+          totalItemsSold += item.quantity;
+          if (!itemAgg[item.name]) itemAgg[item.name] = { qty: 0, total: 0 };
+          itemAgg[item.name].qty += item.quantity;
+          itemAgg[item.name].total += item.price * item.quantity;
+        });
+      } catch (e) {}
     });
 
     const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+    const totalOrders = orders.length;
+    const avgBill = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    const netProfit = totalRevenue - totalExpenses;
 
-    return { totalRevenue, totalGst, paymentBreakdown, typeBreakdown, totalExpenses };
-  };
+    const topItems = Object.entries(itemAgg)
+      .map(([name, d]) => ({ name, ...d }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+
+    const daySeries = Object.entries(dayAgg)
+      .map(([date, d]) => ({ date, ...d }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+
+    const bestDay = daySeries.reduce<{ date: string; total: number } | null>(
+      (best, d) => (!best || d.total > best.total ? { date: d.date, total: d.total } : best),
+      null
+    );
+
+    return {
+      totalRevenue, grossSales, totalGst, totalExpenses, totalOrders,
+      avgBill, netProfit, totalItemsSold, paymentBreakdown, typeBreakdown,
+      topItems, daySeries, bestDay, activeDays: daySeries.length,
+    };
+  }, [orders, expenses]);
+
+  // Expense analytics — category breakdown + totals.
+  const expenseStats = useMemo(() => {
+    const byCat: Record<string, { amount: number; count: number }> = {};
+    let total = 0;
+    expenses.forEach(e => {
+      const cat = e.category || "Uncategorized";
+      if (!byCat[cat]) byCat[cat] = { amount: 0, count: 0 };
+      byCat[cat].amount += e.amount;
+      byCat[cat].count += 1;
+      total += e.amount;
+    });
+    const cats = Object.entries(byCat)
+      .map(([name, d]) => ({ name, ...d }))
+      .sort((a, b) => b.amount - a.amount);
+    return { total, count: expenses.length, avg: expenses.length ? total / expenses.length : 0, cats };
+  }, [expenses]);
+
+  // Backwards-compatible accessor used by print/export handlers.
+  const calculateSalesSummary = () => ({
+    totalRevenue: salesStats.totalRevenue,
+    totalGst: salesStats.totalGst,
+    paymentBreakdown: Object.fromEntries(Object.entries(salesStats.paymentBreakdown).map(([k, v]) => [k, v.amount])),
+    typeBreakdown: Object.fromEntries(Object.entries(salesStats.typeBreakdown).map(([k, v]) => [k, v.amount])),
+    totalExpenses: salesStats.totalExpenses,
+  });
 
   const uniqueItems = useMemo(() => {
     const items = new Set<string>();
@@ -410,12 +488,34 @@ export default function Reports({ db }: ReportsProps) {
         calculateFilteredItemSales().forEach((row) => {
             csvContent += `${row.name},${row.category},${row.qty},${row.total}\n`;
         });
-        }
-    } else if (activeMainTab === "Recent Bills") {
+        } else if (activeReport === "Recent Bills") {
         csvContent += "Order ID,Date,Customer,Type,Payment Mode,Total\n";
         orders.forEach(o => {
             csvContent += `${o.id},${o.created_at},${o.customer_name || 'Guest'},${o.order_type},${o.payment_mode},${o.total}\n`;
         });
+        } else if (activeReport === "Expenses") {
+        csvContent += "Date,Description,Category,Amount\n";
+        expenses.forEach(e => {
+            csvContent += `${e.date},${e.description},${e.category || 'Uncategorized'},${e.amount}\n`;
+        });
+        csvContent += `\nCategory,Entries,Total\n`;
+        expenseStats.cats.forEach(c => {
+            csvContent += `${c.name},${c.count},${c.amount}\n`;
+        });
+        csvContent += `TOTAL,,${expenseStats.total}\n`;
+        } else if (activeReport === "Tax Report") {
+        csvContent += "Bill No,Date,Taxable Value,GST,Total\n";
+        orders.forEach(o => {
+            csvContent += `${(o as any).bill_number || o.id},${o.created_at},${o.subtotal},${o.gst},${o.total}\n`;
+        });
+        csvContent += `\nTaxable Value,GST Collected,Total\n`;
+        csvContent += `${salesStats.grossSales},${salesStats.totalGst},${salesStats.totalRevenue}\n`;
+        } else if (activeReport === "Day-wise Sales") {
+        csvContent += "Date,Orders,Gross Sales,GST,Net Revenue\n";
+        salesStats.daySeries.forEach(d => {
+            csvContent += `${d.date},${d.orders},${d.gross},${d.gst},${d.total}\n`;
+        });
+        }
     } else if (activeMainTab === "Credit Customers") {
         if (selectedCustomer) {
             csvContent += `Statement for ${selectedCustomer.name} (${selectedCustomer.phone || 'No Phone'})\n`;
@@ -775,24 +875,65 @@ export default function Reports({ db }: ReportsProps) {
             text += "\x1B\x45\x01"; // Bold
             text += `${padRight("TOTAL REVENUE:", lineWidth - 15)}${padLeft(grandTotal.toFixed(2), 15)}\n`;
             text += "\x1B\x45\x00"; // Normal
+        } else if (activeReport === "Recent Bills") {
+            text += `RECENT BILLS\n`;
+            text += `Period: ${dateRange.start} to ${dateRange.end}\n`;
+            text += `${sep}\n`;
+            text += "\x1B\x61\x00"; // Left
+            text += `${padRight("Bill No", 10)} ${padLeft("Total", lineWidth - 11)}\n`;
+            text += `${sep}\n`;
+            let grandTotal = 0;
+            orders.forEach(o => {
+                grandTotal += o.total;
+                const billNoStr = (o as any).bill_number || `#${o.id}`;
+                text += `${padRight(billNoStr, 10)} ${padLeft(o.total.toFixed(2), lineWidth - 11)}\n`;
+            });
+            text += `${sep}\n`;
+            text += "\x1B\x45\x01";
+            text += `${padRight("TOTAL:", lineWidth - 15)}${padLeft(grandTotal.toFixed(2), 15)}\n`;
+            text += "\x1B\x45\x00";
+        } else if (activeReport === "Expenses") {
+            text += `EXPENSE REPORT\n`;
+            text += `Period: ${dateRange.start} to ${dateRange.end}\n`;
+            text += `${sep}\n`;
+            text += "\x1B\x61\x00"; // Left
+            text += `${padRight("Category", Math.floor(lineWidth * 0.5))} ${padLeft("Entries", Math.floor(lineWidth * 0.2))} ${padLeft("Amount", Math.floor(lineWidth * 0.3) - 2)}\n`;
+            text += `${sep}\n`;
+            expenseStats.cats.forEach(c => {
+                text += `${padRight(c.name, Math.floor(lineWidth * 0.5))} ${padLeft(c.count.toString(), Math.floor(lineWidth * 0.2))} ${padLeft(c.amount.toFixed(2), Math.floor(lineWidth * 0.3) - 2)}\n`;
+            });
+            text += `${sep}\n`;
+            text += "\x1B\x45\x01";
+            text += `${padRight("TOTAL EXPENSES:", lineWidth - 15)}${padLeft(expenseStats.total.toFixed(2), 15)}\n`;
+            text += "\x1B\x45\x00";
+        } else if (activeReport === "Tax Report") {
+            text += `TAX (GST) REPORT\n`;
+            text += `Period: ${dateRange.start} to ${dateRange.end}\n`;
+            text += `${sep}\n`;
+            text += "\x1B\x61\x00"; // Left
+            text += `${padRight("Taxable Value:", lineWidth - 15)}${padLeft(salesStats.grossSales.toFixed(2), 15)}\n`;
+            text += `${padRight("CGST:", lineWidth - 15)}${padLeft((salesStats.totalGst / 2).toFixed(2), 15)}\n`;
+            text += `${padRight("SGST:", lineWidth - 15)}${padLeft((salesStats.totalGst / 2).toFixed(2), 15)}\n`;
+            text += `${sep}\n`;
+            text += "\x1B\x45\x01";
+            text += `${padRight("TOTAL GST:", lineWidth - 15)}${padLeft(salesStats.totalGst.toFixed(2), 15)}\n`;
+            text += `${padRight("GROSS TOTAL:", lineWidth - 15)}${padLeft(salesStats.totalRevenue.toFixed(2), 15)}\n`;
+            text += "\x1B\x45\x00";
+        } else if (activeReport === "Day-wise Sales") {
+            text += `DAY-WISE SALES\n`;
+            text += `Period: ${dateRange.start} to ${dateRange.end}\n`;
+            text += `${sep}\n`;
+            text += "\x1B\x61\x00"; // Left
+            text += `${padRight("Date", 12)} ${padLeft("Bills", 6)} ${padLeft("Revenue", lineWidth - 20)}\n`;
+            text += `${sep}\n`;
+            salesStats.daySeries.forEach(d => {
+                text += `${padRight(d.date, 12)} ${padLeft(d.orders.toString(), 6)} ${padLeft(d.total.toFixed(2), lineWidth - 20)}\n`;
+            });
+            text += `${sep}\n`;
+            text += "\x1B\x45\x01";
+            text += `${padRight("TOTAL:", lineWidth - 15)}${padLeft(salesStats.totalRevenue.toFixed(2), 15)}\n`;
+            text += "\x1B\x45\x00";
         }
-    } else if (activeMainTab === "Recent Bills") {
-        text += `RECENT BILLS\n`;
-        text += `Period: ${dateRange.start} to ${dateRange.end}\n`;
-        text += `${sep}\n`;
-        text += "\x1B\x61\x00"; // Left
-        text += `${padRight("Bill No", 10)} ${padLeft("Total", lineWidth - 11)}\n`;
-        text += `${sep}\n`;
-        let grandTotal = 0;
-        orders.forEach(o => {
-            grandTotal += o.total;
-            const billNoStr = (o as any).bill_number || `#${o.id}`;
-            text += `${padRight(billNoStr, 10)} ${padLeft(o.total.toFixed(2), lineWidth - 11)}\n`;
-        });
-        text += `${sep}\n`;
-        text += "\x1B\x45\x01";
-        text += `${padRight("TOTAL:", lineWidth - 15)}${padLeft(grandTotal.toFixed(2), 15)}\n`;
-        text += "\x1B\x45\x00";
     } else if (activeMainTab === "Credit Customers") {
         text += `CREDIT CUSTOMERS BALANCE\n`;
         text += `${sep}\n`;
@@ -824,577 +965,732 @@ export default function Reports({ db }: ReportsProps) {
 
   if (isCheckingPlan) {
     return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: 'var(--bg-light)' }}>
-            <div className="spinner" style={{ width: '32px', height: '32px', border: '3px solid var(--border-color)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-        </div>
+      <div className="loading-center" style={{ background: 'var(--bg-light)' }}>
+        <div className="spinner" style={{ width: '32px', height: '32px', border: 'var(--border-thick) solid var(--border-color)', borderTopColor: 'var(--primary)', borderRadius: '50%' }}></div>
+      </div>
     );
   }
 
   if (isPlanExpired) {
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', padding: 'var(--space-8)', borderRadius: 'var(--radius-md)' }}>
-            
-            <div style={{ 
-                background: 'var(--bg-inset)', 
-                border: 'var(--border-thin) solid var(--border-subtle)', 
-                padding: '3rem', 
-                borderRadius: 'var(--radius-2xl)', 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center',
-                maxWidth: '500px',
-                textAlign: 'center',
-                boxShadow: 'var(--shadow-xl)'
-            }}>
-                <div style={{ 
-                    width: '80px', height: '80px', 
-                    borderRadius: '50%', 
-                    background: 'var(--danger-subtle)', 
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    marginBottom: 'var(--space-6)',
-                    border: 'var(--border-thin) solid var(--danger-subtle)'
-                }}>
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                    </svg>
-                </div>
-                <h2 style={{ fontSize: 'var(--text-3xl)', margin: '0 0 1rem 0', color: 'var(--text-primary)', fontWeight: 'var(--font-bold)', letterSpacing: '-0.02em' }}>
-                    You don't have an active plan
-                </h2>
-                <p style={{ color: 'var(--text-secondary)', margin: '0 0 2.5rem 0', fontSize: 'var(--text-base)', lineHeight: '1.6' }}>
-                    Your subscription has expired or hasn't been activated. Upgrade your plan to restore access to the Dashboard, Reports, and all premium features.
-                </p>
-                <a href="https://magicbill.in" target="_blank" rel="noopener noreferrer" className="upgrade-btn">
-                    Activate Plan Now
-                </a>
-            </div>
+      <div className="expired-plan-overlay">
+        <div className="expired-plan-card">
+          <div className="expired-plan-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </div>
+          <h2 style={{ fontSize: 'var(--text-3xl)', margin: '0 0 1rem 0', color: 'var(--text-primary)', fontWeight: 'var(--font-bold)', letterSpacing: '-0.02em' }}>
+            You don't have an active plan
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', margin: '0 0 2.5rem 0', fontSize: 'var(--text-base)', lineHeight: 1.6 }}>
+            Your subscription has expired or hasn't been activated. Upgrade your plan to restore access to the Dashboard, Reports, and all premium features.
+          </p>
+          <a href="https://magicbill.in" target="_blank" rel="noopener noreferrer" className="upgrade-btn">
+            Activate Plan Now
+          </a>
         </div>
+      </div>
     );
   }
 
-  return (
-    <div className="reports-page" style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: '1.25rem', height: '100%', overflowY: 'auto', background: 'var(--bg-light)', position: 'relative' }}>
-      {toastMessage && (
-        <div style={{
-          position: 'fixed', top: '20px', right: '20px', backgroundColor: 'var(--primary)', color: 'var(--primary-fg)',
-          padding: '0.75rem 1.25rem', borderRadius: 'var(--radius-md)', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)', zIndex: 2000, fontWeight: 'var(--font-semibold)', fontSize: '0.875rem'
-        }}>
-          {toastMessage}
-        </div>
-      )}
+  const fmt = (n: number) => `₹${(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const pct = (part: number, whole: number) => whole > 0 ? `${((part / whole) * 100).toFixed(1)}%` : "0%";
+  const dateRangeActive = activeMainTab === "Sales Overview";
 
-      {/* Main Tabs Navigation */}
-      <div style={{ display: 'flex', gap: '0.75rem', paddingBottom: '0.5rem' }}>
-        {[
-          { id: "Sales Overview", icon: TrendingUp },
-          { id: "Credit Customers", icon: Users },
-          { id: "Recent Bills", icon: Receipt },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => {
-                setActiveMainTab(tab.id);
-                setSelectedCustomer(null);
-            }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: '0.6rem 1.25rem', borderRadius: 'var(--radius-md)',
-              background: activeMainTab === tab.id ? 'var(--primary)' : 'var(--bg-light)',
-              color: activeMainTab === tab.id ? 'var(--primary-fg)' : 'var(--text-primary)',
-              border: activeMainTab === tab.id ? 'none' : '1px solid var(--border-color)', 
-              cursor: 'pointer', fontWeight: 'var(--font-semibold)', fontSize: 'var(--text-base)', 
-              transition: 'all var(--transition-base)',
-              boxShadow: activeMainTab === tab.id ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' : 'none'
-            }}
-          >
-            <tab.icon size={18} /> {tab.id}
-          </button>
-        ))}
+  return (
+    <div className="rep-page">
+      {toastMessage && <div className="toast-notification">{toastMessage}</div>}
+
+      {/* Top bar: title + main tabs */}
+      <div className="rep-topbar">
+        <div className="rep-title-wrap">
+          <h1 className="rep-title"><BarChart3 size={24} /> Reports &amp; Analytics</h1>
+          <p className="rep-subtitle">Sales performance, item insights and customer credit — all in one place</p>
+        </div>
+        <div className="rep-maintabs">
+          {[
+            { id: "Sales Overview", icon: TrendingUp },
+            { id: "Credit Customers", icon: Users },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              className={`rep-maintab ${activeMainTab === tab.id ? 'active' : ''}`}
+              onClick={() => { setActiveMainTab(tab.id); setSelectedCustomer(null); }}
+            >
+              <tab.icon size={17} /> {tab.id}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Dynamic Header & Controls */}
-      <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1.25rem', borderRadius: 'var(--radius-lg)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
-          
-          {/* Left Side Controls: Selection Buttons */}
-          <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', background: 'var(--bg-light)', padding: '0.35rem', borderRadius: 'var(--radius-md)', border: 'var(--border-thin) solid var(--border-color)' }}>
-              {activeMainTab === "Sales Overview" && [
-                  { id: "Sales Summary", icon: TrendingUp },
-                  { id: "Item Sales", icon: Package },
+      {/* Toolbar: sub-tabs + date + actions */}
+      <div className="rep-toolbar">
+        <div className="rep-toolbar-left">
+          {activeMainTab === "Sales Overview" ? (
+            <div className="rep-subtabs">
+              {[
+                { id: "Sales Summary", icon: TrendingUp },
+                { id: "Day-wise Sales", icon: CalendarIcon },
+                { id: "Item Sales", icon: Package },
+                { id: "Tax Report", icon: BarChart3 },
+                { id: "Expenses", icon: Wallet },
+                { id: "Recent Bills", icon: Receipt },
               ].map(tab => (
-                  <button
+                <button
                   key={tab.id}
+                  className={`rep-subtab ${activeReport === tab.id ? 'active' : ''}`}
                   onClick={() => setActiveReport(tab.id)}
-                  style={{
-                      display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: 'var(--space-2) var(--space-4)', borderRadius: '0.375rem',
-                      background: activeReport === tab.id ? 'var(--primary)' : 'transparent',
-                      color: activeReport === tab.id ? 'var(--primary-fg)' : 'var(--text-secondary)',
-                      border: 'none',
-                      cursor: 'pointer', fontWeight: activeReport === tab.id ? 600 : 500, fontSize: '0.875rem',
-                      transition: 'all var(--transition-base)',
-                      boxShadow: activeReport === tab.id ? '0 1px 3px rgba(0,0,0,0.2)' : 'none'
-                  }}
-                  >
-                  <tab.icon size={16} /> {tab.id}
-                  </button>
+                >
+                  <tab.icon size={15} /> {tab.id}
+                </button>
               ))}
-              {activeMainTab !== "Sales Overview" && (
-                  <h3 style={{ margin: '0 0.5rem', fontSize: '1.2rem', color: 'var(--text-primary)', fontWeight: 'var(--font-semibold)' }}>{activeMainTab}</h3>
-              )}
-          </div>
+            </div>
+          ) : (
+            <h3 className="rep-context-label" style={{ margin: 0, fontSize: 'var(--text-lg)', fontWeight: 'var(--font-bold)', color: 'var(--text-primary)' }}>
+              Credit Customers
+            </h3>
+          )}
+        </div>
 
-          {/* Right Side Controls: Date Picker & Export */}
-          <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center', flexWrap: 'wrap' }}>
-            {(activeMainTab === "Sales Overview" || activeMainTab === "Recent Bills") && (
-              <div className="date-range-picker">
-                <div className="date-input-wrapper" onClick={(e) => { const i = e.currentTarget.querySelector('input'); if(i) i.showPicker(); }}>
-                  <CalendarIcon size={16} className="date-icon" />
-                  <input 
-                    type="date" 
-                    value={dateRange.start} 
-                    onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} 
-                    className="modern-date-input" 
-                  />
-                </div>
-                <span className="date-separator">to</span>
-                <div className="date-input-wrapper" onClick={(e) => { const i = e.currentTarget.querySelector('input'); if(i) i.showPicker(); }}>
-                  <CalendarIcon size={16} className="date-icon" />
-                  <input 
-                    type="date" 
-                    value={dateRange.end} 
-                    onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} 
-                    className="modern-date-input" 
-                  />
-                </div>
+        <div className="rep-toolbar-right">
+          {dateRangeActive && (
+            <div className="date-range-picker">
+              <div className="date-input-wrapper" onClick={(e) => { const i = e.currentTarget.querySelector('input'); if (i) i.showPicker(); }}>
+                <CalendarIcon size={16} className="date-icon" />
+                <input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))} className="modern-date-input" />
               </div>
-            )}
-            
-            <button 
-              onClick={handlePrintCurrentReport}
-              style={{ 
-                display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: '0.6rem 1.25rem', borderRadius: 'var(--radius-md)', 
-                background: 'var(--bg-light)', border: 'var(--border-thin) solid var(--border-color)', color: 'var(--text-primary)',
-                cursor: 'pointer', fontSize: '0.875rem', fontWeight: 'var(--font-semibold)', transition: 'all var(--transition-base)',
-              }}
-            >
-              <Printer size={16} /> Print Report
-            </button>
-            <button 
-              onClick={handleExportCSV}
-              style={{ 
-                display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: '0.6rem 1.25rem', borderRadius: 'var(--radius-md)', 
-                background: 'var(--bg-light)', border: 'var(--border-thin) solid var(--border-color)', color: 'var(--text-primary)',
-                cursor: 'pointer', fontSize: '0.875rem', fontWeight: 'var(--font-semibold)', transition: 'all var(--transition-base)',
-              }}
-            >
-              <Download size={16} /> Export CSV
-            </button>
-          </div>
+              <span className="date-separator">to</span>
+              <div className="date-input-wrapper" onClick={(e) => { const i = e.currentTarget.querySelector('input'); if (i) i.showPicker(); }}>
+                <CalendarIcon size={16} className="date-icon" />
+                <input type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))} className="modern-date-input" />
+              </div>
+            </div>
+          )}
+          <button className="modern-btn" onClick={handlePrintCurrentReport}>
+            <Printer size={16} /> Print Report
+          </button>
+          <button className="modern-btn" onClick={handleExportCSV}>
+            <Download size={16} /> Export CSV
+          </button>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="panel" style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-6)', borderRadius: 'var(--radius-lg)' }}>
+      <div className="rep-content">
         {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px', color: 'var(--text-secondary)', fontSize: 'var(--text-lg)' }}>
-             <div className="spinner" style={{ marginRight: '1rem', width: '24px', height: '24px', border: '3px solid var(--border-color)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-             Loading Data...
+          <div className="loading-center" style={{ minHeight: '200px', gap: 'var(--space-3)' }}>
+            <div className="spinner" style={{ width: '24px', height: '24px', border: 'var(--border-thick) solid var(--border-color)', borderTopColor: 'var(--primary)', borderRadius: '50%' }}></div>
+            Loading Data…
           </div>
         ) : (
           <>
-            {/* --- SALES OVERVIEW --- */}
+            {/* --- SALES SUMMARY --- */}
             {activeMainTab === "Sales Overview" && activeReport === "Sales Summary" && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
-                {[
-                  { label: "Total Revenue", val: calculateSalesSummary().totalRevenue, color: 'var(--text-primary)' },
-                  { label: "GST Collected", val: calculateSalesSummary().totalGst, color: 'var(--text-primary)' },
-                  { label: "Total Expenses", val: calculateSalesSummary().totalExpenses, color: 'var(--error)' },
-                  { label: "Net Profit", val: (calculateSalesSummary().totalRevenue - calculateSalesSummary().totalExpenses), color: 'var(--success, #10b981)' },
-                ].map(stat => (
-                  <div key={stat.label} style={{ padding: 'var(--space-6)', background: 'var(--bg-light)', borderRadius: 'var(--radius-md)', border: 'var(--border-thin) solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0, fontWeight: 'var(--font-medium)' }}>{stat.label}</p>
-                    <p style={{ fontSize: 'var(--text-3xl)', fontWeight: 'var(--font-bold)', margin: 0, color: stat.color }}>₹{stat.val.toFixed(2)}</p>
-                  </div>
-                ))}
+              <>
+                {/* Summary stat cards */}
+                <div className="rep-stat-grid">
+                  {[
+                    { label: "Total Revenue", val: fmt(salesStats.totalRevenue), sub: `${salesStats.totalOrders} bills` },
+                    { label: "Gross Sales", val: fmt(salesStats.grossSales), sub: "Before tax" },
+                    { label: "GST Collected", val: fmt(salesStats.totalGst), sub: "Output tax" },
+                    { label: "Avg. Bill Value", val: fmt(salesStats.avgBill), sub: "Per order" },
+                    { label: "Total Orders", val: salesStats.totalOrders.toLocaleString('en-IN'), sub: `${salesStats.totalItemsSold} items` },
+                    { label: "Total Expenses", val: fmt(salesStats.totalExpenses), sub: `${expenseStats.count} entries` },
+                    { label: "Net Profit", val: fmt(salesStats.netProfit), sub: "Revenue − expenses" },
+                  ].map(stat => (
+                    <div key={stat.label} className="rep-stat">
+                      <span className="rep-stat-label">{stat.label}</span>
+                      <span className="rep-stat-value">{stat.val}</span>
+                      <span className="rep-stat-sub">{stat.sub}</span>
+                    </div>
+                  ))}
+                </div>
 
-                <div style={{ gridColumn: '1 / -1', marginTop: 'var(--space-4)' }}>
-                  <h4 style={{ fontSize: 'var(--text-lg)', marginBottom: 'var(--space-4)', color: 'var(--text-primary)' }}>Payment Methods</h4>
-                  <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', background: 'var(--bg-light)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: 'var(--border-thin) solid var(--border-color)' }}>
-                    {Object.entries(calculateSalesSummary().paymentBreakdown).map(([mode, amt]) => (
-                      <div key={mode} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '100px' }}>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', fontWeight: 'var(--font-medium)' }}>{mode}</span>
-                        <span style={{ fontWeight: 'var(--font-bold)', fontSize: 'var(--text-lg)', color: 'var(--text-primary)' }}>₹{amt.toFixed(2)}</span>
-                      </div>
-                    ))}
+                {/* Breakdown tables */}
+                <div className="rep-panel-grid">
+                  <div className="rep-card">
+                    <div className="rep-card-head"><Wallet size={15} /> Payment Methods</div>
+                    <table className="rep-table">
+                      <thead>
+                        <tr><th>Mode</th><th className="rep-num">Bills</th><th className="rep-num">Share</th><th className="rep-num">Amount</th></tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(salesStats.paymentBreakdown).map(([mode, data]) => (
+                          <tr key={mode}>
+                            <td className="rep-strong">{mode}</td>
+                            <td className="rep-num">{data.count}</td>
+                            <td className="rep-num">{pct(data.amount, salesStats.totalRevenue)}</td>
+                            <td className="rep-num rep-strong">{fmt(data.amount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="rep-card">
+                    <div className="rep-card-head"><ShoppingBag size={15} /> Order Types</div>
+                    <table className="rep-table">
+                      <thead>
+                        <tr><th>Type</th><th className="rep-num">Orders</th><th className="rep-num">Share</th><th className="rep-num">Amount</th></tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(salesStats.typeBreakdown).map(([type, data]) => (
+                          <tr key={type}>
+                            <td className="rep-strong">{type}</td>
+                            <td className="rep-num">{data.count}</td>
+                            <td className="rep-num">{pct(data.amount, salesStats.totalRevenue)}</td>
+                            <td className="rep-num rep-strong">{fmt(data.amount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-              </div>
+
+                {/* Top selling items */}
+                <div className="rep-card">
+                  <div className="rep-card-head"><Award size={15} /> Top Selling Items</div>
+                  <table className="rep-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '48px' }}>#</th>
+                        <th>Item</th>
+                        <th className="rep-num">Qty Sold</th>
+                        <th className="rep-num">Revenue</th>
+                        <th className="rep-num">% of Sales</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {salesStats.topItems.length === 0 ? (
+                        <tr className="rep-empty-row"><td colSpan={5}>No sales recorded for this period.</td></tr>
+                      ) : salesStats.topItems.map((item, idx) => (
+                        <tr key={item.name}>
+                          <td style={{ color: 'var(--text-tertiary)' }}>{idx + 1}</td>
+                          <td className="rep-strong">{item.name}</td>
+                          <td className="rep-num">{item.qty}</td>
+                          <td className="rep-num rep-strong">{fmt(item.total)}</td>
+                          <td className="rep-num">{pct(item.total, salesStats.grossSales)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
 
             {/* --- ITEM SALES REPORT --- */}
-            {activeMainTab === "Sales Overview" && activeReport === "Item Sales" && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <div style={{ display: 'flex', gap: 'var(--space-4)', flexWrap: 'wrap', alignItems: 'flex-end', background: 'var(--bg-light)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: 'var(--border-thin) solid var(--border-color)' }}>
-                    <div style={{ flex: 1, minWidth: '150px' }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 'var(--font-medium)', color: 'var(--text-secondary)' }}>Item</label>
-                        <select 
-                            value={itemSalesFilter.item} 
-                            onChange={e => setItemSalesFilter(p => ({...p, item: e.target.value}))}
-                            style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '0.375rem', border: 'var(--border-thin) solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-primary)', outline: 'none', cursor: 'pointer' }}
-                        >
-                            <option>All Items</option>
-                            {uniqueItems.map(item => <option key={item}>{item}</option>)}
-                        </select>
+            {activeMainTab === "Sales Overview" && activeReport === "Item Sales" && (() => {
+              const itemRows = calculateFilteredItemSales();
+              const itemTotalQty = itemRows.reduce((s, r) => s + r.qty, 0);
+              const itemTotalRev = itemRows.reduce((s, r) => s + r.total, 0);
+              return (
+                <>
+                  <div className="rep-filters">
+                    <div className="rep-filter-field">
+                      <label>Item</label>
+                      <select value={itemSalesFilter.item} onChange={e => setItemSalesFilter(p => ({ ...p, item: e.target.value }))} className="modern-select">
+                        <option>All Items</option>
+                        {uniqueItems.map(item => <option key={item}>{item}</option>)}
+                      </select>
                     </div>
-                    <div style={{ flex: 1, minWidth: '150px' }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 'var(--font-medium)', color: 'var(--text-secondary)' }}>Category</label>
-                        <select 
-                            value={itemSalesFilter.category} 
-                            onChange={e => setItemSalesFilter(p => ({...p, category: e.target.value}))}
-                            style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '0.375rem', border: 'var(--border-thin) solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-primary)', outline: 'none', cursor: 'pointer' }}
-                        >
-                            <option>All Categories</option>
-                            {Object.values(categories).map(cat => <option key={cat}>{cat}</option>)}
-                        </select>
+                    <div className="rep-filter-field">
+                      <label>Category</label>
+                      <select value={itemSalesFilter.category} onChange={e => setItemSalesFilter(p => ({ ...p, category: e.target.value }))} className="modern-select">
+                        <option>All Categories</option>
+                        {Object.values(categories).map(cat => <option key={cat}>{cat}</option>)}
+                      </select>
                     </div>
-                    <div style={{ flex: 2, minWidth: '200px' }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 'var(--font-medium)', color: 'var(--text-secondary)' }}>Search</label>
-                        <input 
-                            type="text"
-                            placeholder="Search items..."
-                            value={itemSalesFilter.search} 
-                            onChange={e => setItemSalesFilter(p => ({...p, search: e.target.value}))}
-                            style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '0.375rem', border: 'var(--border-thin) solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-primary)', outline: 'none' }}
-                        />
+                    <div className="rep-filter-field" style={{ flex: 2 }}>
+                      <label>Search</label>
+                      <input type="text" placeholder="Search items…" value={itemSalesFilter.search} onChange={e => setItemSalesFilter(p => ({ ...p, search: e.target.value }))} className="modern-input" />
                     </div>
-                    <button 
-                        onClick={() => setItemSalesFilter({ item: "All Items", category: "All Categories", search: "" })}
-                        style={{ padding: '0.6rem 1.25rem', background: 'var(--bg-light)', border: 'var(--border-thin) solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: 'var(--font-semibold)', transition: 'all var(--transition-base)', height: '42px' }}
-                    >
-                        Reset
+                    <button className="modern-btn" onClick={() => setItemSalesFilter({ item: "All Items", category: "All Categories", search: "" })}>
+                      Reset
                     </button>
-                </div>
+                  </div>
 
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-base)' }}>
+                  <div className="rep-table-wrap">
+                    <table className="rep-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: '48px' }}>#</th>
+                          <th>Item Name</th>
+                          <th>Category</th>
+                          <th className="rep-num">Qty Sold</th>
+                          <th className="rep-num">Total Revenue</th>
+                          <th className="rep-num">% Share</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {itemRows.length === 0 ? (
+                          <tr className="rep-empty-row"><td colSpan={6}>No items found matching the filters.</td></tr>
+                        ) : (
+                          itemRows.map((row, idx) => (
+                            <tr key={row.name}>
+                              <td style={{ color: 'var(--text-tertiary)' }}>{idx + 1}</td>
+                              <td className="rep-strong">{row.name}</td>
+                              <td style={{ color: 'var(--text-secondary)' }}>{row.category}</td>
+                              <td className="rep-num">{row.qty}</td>
+                              <td className="rep-num rep-strong">{fmt(row.total)}</td>
+                              <td className="rep-num">{pct(row.total, itemTotalRev)}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                      {itemRows.length > 0 && (
+                        <tfoot>
+                          <tr style={{ borderTop: 'var(--border-thick) solid var(--border-color)' }}>
+                            <td colSpan={3} className="rep-strong" style={{ padding: 'var(--space-3) var(--space-4)' }}>Total ({itemRows.length} items)</td>
+                            <td className="rep-num rep-strong" style={{ padding: 'var(--space-3) var(--space-4)' }}>{itemTotalQty}</td>
+                            <td className="rep-num rep-strong" style={{ padding: 'var(--space-3) var(--space-4)' }}>{fmt(itemTotalRev)}</td>
+                            <td className="rep-num" style={{ padding: 'var(--space-3) var(--space-4)' }}>100%</td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                </>
+              );
+            })()}
+
+            {/* --- RECENT BILLS --- */}
+            {activeMainTab === "Sales Overview" && activeReport === "Recent Bills" && (
+              <div className="rep-table-wrap">
+                <table className="rep-table">
                   <thead>
-                    <tr style={{ borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>
-                      <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)' }}>Name</th>
-                      <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)' }}>Category</th>
-                      <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)', textAlign: 'right' }}>Qty</th>
-                      <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)', textAlign: 'right' }}>Total</th>
+                    <tr>
+                      <th>Bill No</th>
+                      <th>Date / Time</th>
+                      <th>Customer</th>
+                      <th>Type</th>
+                      <th>Payment Mode</th>
+                      <th className="rep-num">Total</th>
+                      <th className="rep-center">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {calculateFilteredItemSales().length === 0 ? (
-                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>No items found matching the filters.</td></tr>
-                    ) : (
-                        calculateFilteredItemSales().map((row, idx) => (
-                        <tr key={row.name} style={{ borderBottom: 'var(--border-thin) solid var(--border-color)', backgroundColor: idx % 2 === 0 ? 'transparent' : 'var(--bg-light)', transition: 'background-color 0.15s' }}>
-                            <td style={{ padding: '0.875rem 0.75rem', fontWeight: 'var(--font-medium)' }}>{row.name}</td>
-                            <td style={{ padding: '0.875rem 0.75rem', color: 'var(--text-secondary)' }}>{row.category}</td>
-                            <td style={{ padding: '0.875rem 0.75rem', textAlign: 'right' }}>{row.qty}</td>
-                            <td style={{ padding: '0.875rem 0.75rem', textAlign: 'right', fontWeight: 'var(--font-semibold)' }}>₹{row.total.toFixed(2)}</td>
-                        </tr>
-                        ))
-                    )}
+                    {orders.length === 0 ? (
+                      <tr className="rep-empty-row"><td colSpan={7}>No bills found for this period.</td></tr>
+                    ) : orders.map((o) => (
+                      <tr key={o.id}>
+                        <td className="rep-strong" style={{ color: 'var(--primary)' }}>{(o as any).bill_number ? `${(o as any).bill_number}` : `#${o.id}`}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{new Date(o.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                        <td className="rep-strong">{o.customer_name || 'Guest'}</td>
+                        <td style={{ color: 'var(--text-secondary)' }}>{o.order_type}</td>
+                        <td>
+                          {editingPaymentModeId === o.id ? (
+                            <div className="rep-inline-edit">
+                              <select value={newPaymentMode} onChange={(e) => setNewPaymentMode(e.target.value)} className="modern-select" style={{ width: 'auto', padding: '0.35rem 0.5rem' }}>
+                                <option value="Cash">Cash</option>
+                                <option value="Card">Card</option>
+                                <option value="UPI">UPI</option>
+                                <option value="Credit">Credit</option>
+                              </select>
+                              <button className="modern-btn-primary" style={{ padding: '0.35rem 0.7rem' }} onClick={() => handleUpdatePaymentMode(o.id)}>Save</button>
+                              <button className="modern-btn" style={{ padding: '0.35rem 0.7rem' }} onClick={() => setEditingPaymentModeId(null)}>Cancel</button>
+                            </div>
+                          ) : (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                              <span className="badge badge--info">{o.payment_mode || 'Cash'}</span>
+                              <button className="row-action-btn" title="Edit Payment Mode" onClick={() => { setEditingPaymentModeId(o.id); setNewPaymentMode(o.payment_mode || 'Cash'); }}>
+                                <Edit2 size={13} />
+                              </button>
+                            </span>
+                          )}
+                        </td>
+                        <td className="rep-num rep-strong">{fmt(o.total)}</td>
+                        <td className="rep-center">
+                          <button className="modern-btn" style={{ padding: '0.4rem 0.75rem' }} onClick={() => handleReprintBill(o.id)}>
+                            <Printer size={14} /> Reprint
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             )}
 
-            {/* --- CREDIT CUSTOMERS --- */}
-            {activeMainTab === "Credit Customers" && (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-base)' }}>
+            {/* --- DAY-WISE SALES --- */}
+            {activeMainTab === "Sales Overview" && activeReport === "Day-wise Sales" && (
+              <>
+                <div className="rep-stat-grid">
+                  {[
+                    { label: "Active Days", val: salesStats.activeDays.toLocaleString('en-IN'), sub: "With sales" },
+                    { label: "Avg / Day", val: fmt(salesStats.activeDays ? salesStats.totalRevenue / salesStats.activeDays : 0), sub: "Revenue" },
+                    { label: "Best Day", val: salesStats.bestDay ? fmt(salesStats.bestDay.total) : '—', sub: salesStats.bestDay ? new Date(salesStats.bestDay.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'No data' },
+                    { label: "Total Revenue", val: fmt(salesStats.totalRevenue), sub: `${salesStats.totalOrders} bills` },
+                  ].map(stat => (
+                    <div key={stat.label} className="rep-stat">
+                      <span className="rep-stat-label">{stat.label}</span>
+                      <span className="rep-stat-value">{stat.val}</span>
+                      <span className="rep-stat-sub">{stat.sub}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="rep-table-wrap">
+                  <table className="rep-table">
                     <thead>
-                    <tr style={{ borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)' }}>Customer Name</th>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)' }}>Phone</th>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)', textAlign: 'right' }}>Balance</th>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)', textAlign: 'right' }}>Actions</th>
-                    </tr>
+                      <tr>
+                        <th>Date</th>
+                        <th className="rep-num">Bills</th>
+                        <th className="rep-num">Gross Sales</th>
+                        <th className="rep-num">GST</th>
+                        <th className="rep-num">Net Revenue</th>
+                        <th className="rep-num">Avg Bill</th>
+                      </tr>
                     </thead>
                     <tbody>
-                    {customers.length === 0 ? (
-                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>No customers found.</td></tr>
-                    ) : customers.map((c, idx) => (
-                        <tr key={c.id} style={{ borderBottom: 'var(--border-thin) solid var(--border-color)', backgroundColor: idx % 2 === 0 ? 'transparent' : 'var(--bg-light)' }}>
-                            <td style={{ padding: '0.875rem 0.75rem', fontWeight: 'var(--font-medium)' }}>
-                                {editingCustomer?.id === c.id ? (
-                                    <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                                        <input 
-                                            type="text" 
-                                            value={editingCustomer.name} 
-                                            onChange={e => setEditingCustomer({...editingCustomer, name: e.target.value})}
-                                            style={{ padding: '0.3rem 0.5rem', borderRadius: 'var(--radius-xs)', border: 'var(--border-thin) solid var(--primary)', fontSize: '0.875rem', background: 'var(--bg-light)', color: 'var(--text-primary)' }}
-                                        />
-                                        <button onClick={handleEditCustomerName} style={{ background: 'var(--primary)', color: 'var(--text-primary)', border: 'none', borderRadius: 'var(--radius-xs)', padding: '0.3rem 0.6rem', cursor: 'pointer', fontWeight: 'var(--font-semibold)' }}>Save</button>
-                                        <button onClick={() => setEditingCustomer(null)} style={{ background: 'var(--bg-light)', color: 'var(--text-primary)', border: 'var(--border-thin) solid var(--border-color)', borderRadius: 'var(--radius-xs)', padding: '0.3rem 0.6rem', cursor: 'pointer' }}>Cancel</button>
-                                    </div>
-                                ) : (
-                                    <span 
-                                        onClick={() => setSelectedCustomer(c)} 
-                                        style={{ cursor: 'pointer', color: 'var(--primary)', fontWeight: 'var(--font-semibold)', transition: 'color 0.2s' }}
-                                    >
-                                        {c.name}
-                                    </span>
-                                )}
-                            </td>
-                            <td style={{ padding: '0.875rem 0.75rem' }}>{c.phone || '-'}</td>
-                            <td style={{ padding: '0.875rem 0.75rem', textAlign: 'right', fontWeight: 'var(--font-bold)', color: c.credit_balance > 0 ? 'var(--error)' : 'var(--success)' }}>
-                                ₹{c.credit_balance.toFixed(2)}
-                            </td>
-                            <td style={{ padding: '0.875rem 0.75rem', textAlign: 'right' }}>
-                                <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
-                                    <button 
-                                        onClick={() => setSelectedCustomer(c)}
-                                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.75rem', background: 'var(--primary)', color: 'var(--primary-fg)', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: 'var(--font-semibold)' }}
-                                    >
-                                        <Eye size={14} /> View
-                                    </button>
-                                    <button 
-                                        onClick={() => setEditingCustomer({id: c.id, name: c.name})}
-                                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.75rem', background: 'var(--bg-light)', color: 'var(--text-primary)', border: 'var(--border-thin) solid var(--border-color)', borderRadius: '0.375rem', cursor: 'pointer', fontSize: 'var(--text-sm)' }}
-                                    >
-                                        <Edit2 size={14} /> Edit
-                                    </button>
-                                    <button 
-                                        onClick={() => handleDeleteCustomer(c.id)}
-                                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.75rem', background: 'var(--danger-subtle)', color: 'var(--danger)', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: 'var(--font-semibold)' }}
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
-                                </div>
-                            </td>
+                      {salesStats.daySeries.length === 0 ? (
+                        <tr className="rep-empty-row"><td colSpan={6}>No sales recorded for this period.</td></tr>
+                      ) : salesStats.daySeries.map((d) => (
+                        <tr key={d.date}>
+                          <td className="rep-strong" style={{ whiteSpace: 'nowrap' }}>{new Date(d.date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                          <td className="rep-num">{d.orders}</td>
+                          <td className="rep-num">{fmt(d.gross)}</td>
+                          <td className="rep-num">{fmt(d.gst)}</td>
+                          <td className="rep-num rep-strong">{fmt(d.total)}</td>
+                          <td className="rep-num">{fmt(d.orders ? d.total / d.orders : 0)}</td>
                         </tr>
-                    ))}
+                      ))}
                     </tbody>
-                </table>
+                    {salesStats.daySeries.length > 0 && (
+                      <tfoot>
+                        <tr style={{ borderTop: 'var(--border-thick) solid var(--border-color)' }}>
+                          <td className="rep-strong" style={{ padding: 'var(--space-3) var(--space-4)' }}>Total</td>
+                          <td className="rep-num rep-strong" style={{ padding: 'var(--space-3) var(--space-4)' }}>{salesStats.totalOrders}</td>
+                          <td className="rep-num rep-strong" style={{ padding: 'var(--space-3) var(--space-4)' }}>{fmt(salesStats.grossSales)}</td>
+                          <td className="rep-num rep-strong" style={{ padding: 'var(--space-3) var(--space-4)' }}>{fmt(salesStats.totalGst)}</td>
+                          <td className="rep-num rep-strong" style={{ padding: 'var(--space-3) var(--space-4)' }}>{fmt(salesStats.totalRevenue)}</td>
+                          <td className="rep-num" style={{ padding: 'var(--space-3) var(--space-4)' }}>{fmt(salesStats.avgBill)}</td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              </>
             )}
 
-            {/* --- RECENT BILLS --- */}
-            {activeMainTab === "Recent Bills" && (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-base)' }}>
+            {/* --- TAX (GST) REPORT --- */}
+            {activeMainTab === "Sales Overview" && activeReport === "Tax Report" && (
+              <>
+                <div className="rep-stat-grid">
+                  {[
+                    { label: "Taxable Value", val: fmt(salesStats.grossSales), sub: "Net of tax" },
+                    { label: "CGST", val: fmt(salesStats.totalGst / 2), sub: "Central GST" },
+                    { label: "SGST", val: fmt(salesStats.totalGst / 2), sub: "State GST" },
+                    { label: "Total GST", val: fmt(salesStats.totalGst), sub: "Output tax" },
+                    { label: "Gross Total", val: fmt(salesStats.totalRevenue), sub: "Incl. tax" },
+                  ].map(stat => (
+                    <div key={stat.label} className="rep-stat">
+                      <span className="rep-stat-label">{stat.label}</span>
+                      <span className="rep-stat-value">{stat.val}</span>
+                      <span className="rep-stat-sub">{stat.sub}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="rep-table-wrap">
+                  <table className="rep-table">
                     <thead>
-                    <tr style={{ borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)' }}>Bill No</th>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)' }}>Date/Time</th>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)' }}>Customer</th>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)' }}>Payment Mode</th>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)', textAlign: 'right' }}>Total</th>
-                        <th style={{ padding: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-semibold)', textAlign: 'center' }}>Action</th>
-                    </tr>
+                      <tr>
+                        <th>Bill No</th>
+                        <th>Date</th>
+                        <th>Payment</th>
+                        <th className="rep-num">Taxable Value</th>
+                        <th className="rep-num">CGST</th>
+                        <th className="rep-num">SGST</th>
+                        <th className="rep-num">Total</th>
+                      </tr>
                     </thead>
                     <tbody>
-                    {orders.length === 0 ? (
-                        <tr><td colSpan={6} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>No bills found.</td></tr>
-                    ) : orders.map((o, idx) => (
-                        <tr key={o.id} style={{ borderBottom: 'var(--border-thin) solid var(--border-color)', backgroundColor: idx % 2 === 0 ? 'transparent' : 'var(--bg-light)' }}>
-                            <td style={{ padding: '0.875rem 0.75rem', fontWeight: 'var(--font-semibold)', color: 'var(--primary)' }}>{(o as any).bill_number ? `${(o as any).bill_number}` : `#${o.id}`}</td>
-                            <td style={{ padding: '0.875rem 0.75rem' }}>{new Date(o.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</td>
-                            <td style={{ padding: '0.875rem 0.75rem', fontWeight: 'var(--font-medium)' }}>{o.customer_name || 'Guest'}</td>
-                            <td style={{ padding: '0.875rem 0.75rem' }}>
-                                {editingPaymentModeId === o.id ? (
-                                    <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
-                                        <select 
-                                            value={newPaymentMode}
-                                            onChange={(e) => setNewPaymentMode(e.target.value)}
-                                            style={{ padding: '0.2rem 0.4rem', borderRadius: 'var(--radius-xs)', border: 'var(--border-thin) solid var(--primary)', fontSize: '0.875rem', background: 'var(--bg-light)', color: 'var(--text-primary)' }}
-                                        >
-                                            <option value="Cash">Cash</option>
-                                            <option value="Card">Card</option>
-                                            <option value="UPI">UPI</option>
-                                            <option value="Credit">Credit</option>
-                                        </select>
-                                        <button 
-                                            onClick={() => handleUpdatePaymentMode(o.id)}
-                                            style={{ background: 'var(--primary)', color: 'var(--primary-fg)', border: 'none', borderRadius: 'var(--radius-xs)', padding: '0.2rem 0.4rem', cursor: 'pointer', fontWeight: 'var(--font-semibold)', fontSize: 'var(--text-xs)' }}
-                                        >
-                                            Save
-                                        </button>
-                                        <button 
-                                            onClick={() => setEditingPaymentModeId(null)}
-                                            style={{ background: 'var(--bg-light)', color: 'var(--text-primary)', border: 'var(--border-thin) solid var(--border-color)', borderRadius: 'var(--radius-xs)', padding: '0.2rem 0.4rem', cursor: 'pointer', fontSize: 'var(--text-xs)' }}
-                                        >
-                                            Cancel
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                                        <span>{o.payment_mode || 'Cash'}</span>
-                                        <button 
-                                            onClick={() => {
-                                                setEditingPaymentModeId(o.id);
-                                                setNewPaymentMode(o.payment_mode || 'Cash');
-                                            }}
-                                            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }}
-                                            title="Edit Payment Mode"
-                                        >
-                                            <Edit2 size={12} />
-                                        </button>
-                                    </div>
-                                )}
-                            </td>
-                            <td style={{ padding: '0.875rem 0.75rem', textAlign: 'right', fontWeight: 'var(--font-bold)' }}>₹{o.total.toFixed(2)}</td>
-                            <td style={{ padding: '0.875rem 0.75rem', textAlign: 'center' }}>
-                                <button 
-                                    onClick={() => handleReprintBill(o.id)}
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.75rem', background: 'var(--bg-light)', border: 'var(--border-thin) solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '0.375rem', cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: 'var(--font-semibold)' }}
-                                >
-                                    <Printer size={14} /> Reprint
-                                </button>
-                            </td>
+                      {orders.length === 0 ? (
+                        <tr className="rep-empty-row"><td colSpan={7}>No taxable bills for this period.</td></tr>
+                      ) : orders.map((o) => (
+                        <tr key={o.id}>
+                          <td className="rep-strong" style={{ color: 'var(--primary)' }}>{(o as any).bill_number ? `${(o as any).bill_number}` : `#${o.id}`}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>{new Date(o.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                          <td style={{ color: 'var(--text-secondary)' }}>{o.payment_mode || 'Cash'}</td>
+                          <td className="rep-num">{fmt(o.subtotal)}</td>
+                          <td className="rep-num">{fmt(o.gst / 2)}</td>
+                          <td className="rep-num">{fmt(o.gst / 2)}</td>
+                          <td className="rep-num rep-strong">{fmt(o.total)}</td>
                         </tr>
-                    ))}
+                      ))}
                     </tbody>
-                </table>
+                    {orders.length > 0 && (
+                      <tfoot>
+                        <tr style={{ borderTop: 'var(--border-thick) solid var(--border-color)' }}>
+                          <td colSpan={3} className="rep-strong" style={{ padding: 'var(--space-3) var(--space-4)' }}>Total</td>
+                          <td className="rep-num rep-strong" style={{ padding: 'var(--space-3) var(--space-4)' }}>{fmt(salesStats.grossSales)}</td>
+                          <td className="rep-num rep-strong" style={{ padding: 'var(--space-3) var(--space-4)' }}>{fmt(salesStats.totalGst / 2)}</td>
+                          <td className="rep-num rep-strong" style={{ padding: 'var(--space-3) var(--space-4)' }}>{fmt(salesStats.totalGst / 2)}</td>
+                          <td className="rep-num rep-strong" style={{ padding: 'var(--space-3) var(--space-4)' }}>{fmt(salesStats.totalRevenue)}</td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              </>
             )}
+
+            {/* --- EXPENSES REPORT --- */}
+            {activeMainTab === "Sales Overview" && activeReport === "Expenses" && (
+              <>
+                <div className="rep-stat-grid">
+                  {[
+                    { label: "Total Expenses", val: fmt(expenseStats.total), sub: `${expenseStats.count} entries` },
+                    { label: "Categories", val: expenseStats.cats.length.toLocaleString('en-IN'), sub: "Heads" },
+                    { label: "Avg / Entry", val: fmt(expenseStats.avg), sub: "Per expense" },
+                    { label: "Net Profit", val: fmt(salesStats.netProfit), sub: "After expenses" },
+                  ].map(stat => (
+                    <div key={stat.label} className="rep-stat">
+                      <span className="rep-stat-label">{stat.label}</span>
+                      <span className="rep-stat-value">{stat.val}</span>
+                      <span className="rep-stat-sub">{stat.sub}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {expenseStats.cats.length > 0 && (
+                  <div className="rep-card">
+                    <div className="rep-card-head"><Wallet size={15} /> Expenses by Category</div>
+                    <table className="rep-table">
+                      <thead>
+                        <tr><th>Category</th><th className="rep-num">Entries</th><th className="rep-num">Share</th><th className="rep-num">Amount</th></tr>
+                      </thead>
+                      <tbody>
+                        {expenseStats.cats.map((c) => (
+                          <tr key={c.name}>
+                            <td className="rep-strong">{c.name}</td>
+                            <td className="rep-num">{c.count}</td>
+                            <td className="rep-num">{pct(c.amount, expenseStats.total)}</td>
+                            <td className="rep-num rep-strong">{fmt(c.amount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <div className="rep-table-wrap">
+                  <table className="rep-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th className="rep-num">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {expenses.length === 0 ? (
+                        <tr className="rep-empty-row"><td colSpan={4}>No expenses recorded for this period.</td></tr>
+                      ) : expenses.map((e) => (
+                        <tr key={e.id}>
+                          <td style={{ whiteSpace: 'nowrap' }}>{new Date(e.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                          <td className="rep-strong">{e.description || '—'}</td>
+                          <td><span className="badge badge--warning">{e.category || 'Uncategorized'}</span></td>
+                          <td className="rep-num rep-strong">{fmt(e.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {expenses.length > 0 && (
+                      <tfoot>
+                        <tr style={{ borderTop: 'var(--border-thick) solid var(--border-color)' }}>
+                          <td colSpan={3} className="rep-strong" style={{ padding: 'var(--space-3) var(--space-4)' }}>Total ({expenseStats.count})</td>
+                          <td className="rep-num rep-strong" style={{ padding: 'var(--space-3) var(--space-4)' }}>{fmt(expenseStats.total)}</td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              </>
+            )}
+
+            {/* --- CREDIT CUSTOMERS --- */}
+            {activeMainTab === "Credit Customers" && (() => {
+              const totalDue = customers.reduce((s, c) => s + (c.credit_balance > 0 ? c.credit_balance : 0), 0);
+              const withDue = customers.filter(c => c.credit_balance > 0).length;
+              return (
+                <>
+                  <div className="rep-stat-grid">
+                    {[
+                      { label: "Total Customers", val: customers.length.toLocaleString('en-IN'), sub: "On record" },
+                      { label: "Customers With Due", val: withDue.toLocaleString('en-IN'), sub: "Pending credit" },
+                      { label: "Total Outstanding", val: fmt(totalDue), sub: "Receivable" },
+                    ].map(stat => (
+                      <div key={stat.label} className="rep-stat">
+                        <span className="rep-stat-label">{stat.label}</span>
+                        <span className="rep-stat-value">{stat.val}</span>
+                        <span className="rep-stat-sub">{stat.sub}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="rep-table-wrap">
+                    <table className="rep-table">
+                      <thead>
+                        <tr>
+                          <th>Customer Name</th>
+                          <th>Phone</th>
+                          <th className="rep-num">Balance</th>
+                          <th className="rep-num">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {customers.length === 0 ? (
+                          <tr className="rep-empty-row"><td colSpan={4}>No customers found.</td></tr>
+                        ) : customers.map((c) => (
+                          <tr key={c.id}>
+                            <td>
+                              {editingCustomer?.id === c.id ? (
+                                <div className="rep-inline-edit">
+                                  <input type="text" value={editingCustomer.name} onChange={e => setEditingCustomer({ ...editingCustomer, name: e.target.value })} className="modern-input" style={{ padding: '0.35rem 0.5rem', width: 'auto' }} />
+                                  <button className="modern-btn-primary" style={{ padding: '0.35rem 0.7rem' }} onClick={handleEditCustomerName}>Save</button>
+                                  <button className="modern-btn" style={{ padding: '0.35rem 0.7rem' }} onClick={() => setEditingCustomer(null)}>Cancel</button>
+                                </div>
+                              ) : (
+                                <button className="rep-link" onClick={() => setSelectedCustomer(c)}>{c.name}</button>
+                              )}
+                            </td>
+                            <td style={{ color: 'var(--text-secondary)' }}>{c.phone || '—'}</td>
+                            <td className={`rep-num ${c.credit_balance > 0 ? 'rep-amt-due' : 'rep-amt-clear'}`}>{fmt(c.credit_balance)}</td>
+                            <td>
+                              <div className="rep-actions">
+                                <button className="modern-btn-primary" style={{ padding: '0.4rem 0.75rem' }} onClick={() => setSelectedCustomer(c)}>
+                                  <Eye size={14} /> View
+                                </button>
+                                <button className="modern-btn" style={{ padding: '0.4rem 0.75rem' }} onClick={() => setEditingCustomer({ id: c.id, name: c.name })}>
+                                  <Edit2 size={14} /> Edit
+                                </button>
+                                <button className="modern-btn-danger" style={{ padding: '0.4rem 0.6rem' }} onClick={() => handleDeleteCustomer(c.id)} title="Delete customer">
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              );
+            })()}
           </>
         )}
       </div>
 
       {/* --- CUSTOMER DETAILS MODAL --- */}
       {selectedCustomer && (
-          <div style={{
-              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-              backgroundColor: 'var(--overlay-heavy)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1500, padding: 'var(--space-6)',
-              backdropFilter: 'blur(6px)'
-          }}>
-              <div style={{
-                  background: 'var(--bg-white)', width: '100%', maxWidth: '800px', maxHeight: '90vh', 
-                  borderRadius: '16px', display: 'flex', flexDirection: 'column', overflow: 'hidden',
-                  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-                  border: 'var(--border-thin) solid var(--border-color)'
-              }}>
-                  {/* Modal Header */}
-                  <div style={{ padding: 'var(--space-6)', borderBottom: 'var(--border-thin) solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-white)' }}>
-                      <div>
-                          <h2 style={{ margin: 0, fontSize: 'var(--text-2xl)', color: 'var(--text-primary)', fontWeight: 'var(--font-bold)' }}>{selectedCustomer.name}</h2>
-                          <p style={{ margin: '0.25rem 0 0 0', fontSize: 'var(--text-base)', color: 'var(--text-secondary)' }}>{selectedCustomer.phone || 'No phone'}</p>
-                      </div>
-                      <button onClick={() => setSelectedCustomer(null)} style={{ background: 'var(--bg-light)', border: 'var(--border-thin) solid var(--border-color)', borderRadius: '50%', padding: '0.5rem', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all var(--transition-base)' }} onMouseOver={e => e.currentTarget.style.color = 'var(--text-primary)'} onMouseOut={e => e.currentTarget.style.color = 'var(--text-secondary)'}><X size={20} /></button>
-                  </div>
-
-                  {/* Modal Body */}
-                  <div style={{ padding: 'var(--space-6)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', background: 'var(--bg-white)' }}>
-                      
-                      {/* Summary Cards */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-6)' }}>
-                          <div style={{ padding: '1.25rem', background: 'var(--bg-light)', borderRadius: 'var(--radius-md)', border: 'var(--border-thin) solid var(--border-color)' }}>
-                              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'var(--font-medium)' }}>Pending Balance</p>
-                              <p style={{ margin: '0.5rem 0 0 0', fontSize: 'var(--text-3xl)', fontWeight: 'var(--font-bold)', color: selectedCustomer.credit_balance > 0 ? 'var(--error)' : 'var(--success)' }}>₹{selectedCustomer.credit_balance.toFixed(2)}</p>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', justifyContent: 'center' }}>
-                              <button 
-                                  onClick={handlePrintCustomerReport}
-                                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)', padding: '0.75rem', background: 'var(--bg-light)', color: 'var(--text-primary)', border: 'var(--border-thin) solid var(--border-color)', borderRadius: '0.375rem', cursor: 'pointer', fontSize: 'var(--text-base)', fontWeight: 'var(--font-semibold)' }}
-                              >
-                                  <Printer size={16} /> Print Statement
-                              </button>
-                              <button 
-                                  onClick={() => settleCustomerDue(selectedCustomer.id)}
-                                  style={{ width: '100%', padding: '0.75rem', background: 'var(--primary)', color: 'var(--primary-fg)', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: 'var(--font-semibold)', fontSize: 'var(--text-base)' }}
-                              >
-                                  Settle All Due
-                              </button>
-                          </div>
-                      </div>
-
-                      {/* Record Payment Section */}
-                      <div style={{ padding: '1.25rem', background: 'var(--bg-light)', borderRadius: 'var(--radius-md)', border: 'var(--border-thin) solid var(--border-color)', display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)', alignItems: 'flex-end' }}>
-                          <div style={{ flex: 1, minWidth: '150px' }}>
-                              <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 'var(--font-medium)' }}>Record Payment</label>
-                              <input 
-                                  type="number" 
-                                  placeholder="Amount" 
-                                  value={partialPaymentAmount}
-                                  onChange={e => setPartialPaymentAmount(e.target.value)}
-                                  style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '0.375rem', border: 'var(--border-thin) solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-primary)', fontSize: 'var(--text-base)', outline: 'none' }}
-                              />
-                          </div>
-                          <div style={{ minWidth: '120px' }}>
-                              <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 'var(--font-medium)' }}>Mode</label>
-                              <select 
-                                  value={partialPaymentMode}
-                                  onChange={e => setPartialPaymentMode(e.target.value)}
-                                  style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '0.375rem', border: 'var(--border-thin) solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-primary)', fontSize: 'var(--text-base)', outline: 'none', cursor: 'pointer' }}
-                              >
-                                  <option>Cash</option>
-                                  <option>UPI</option>
-                                  <option>Card</option>
-                              </select>
-                          </div>
-                          <button 
-                              onClick={handlePartialPayment}
-                              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.25rem', background: 'var(--success)', color: 'var(--text-primary)', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: 'var(--font-semibold)', fontSize: 'var(--text-base)', height: 'fit-content' }}
-                          >
-                              <PlusCircle size={18} /> Record
-                          </button>
-                      </div>
-
-                      {/* Transactions Table */}
-                      <div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
-                              <h4 style={{ margin: 0, fontSize: 'var(--text-lg)', color: 'var(--text-primary)' }}>Transaction History</h4>
-                              <div className="date-range-picker">
-                                <div className="date-input-wrapper" onClick={(e) => { const i = e.currentTarget.querySelector('input'); if(i) i.showPicker(); }}>
-                                  <CalendarIcon size={14} className="date-icon" />
-                                  <input type="date" value={customerDateRange.start} onChange={e => setCustomerDateRange(p => ({...p, start: e.target.value}))} className="modern-date-input" style={{ fontSize: 'var(--text-sm)' }} />
-                                </div>
-                                <span className="date-separator" style={{ fontSize: 'var(--text-xs)' }}>to</span>
-                                <div className="date-input-wrapper" onClick={(e) => { const i = e.currentTarget.querySelector('input'); if(i) i.showPicker(); }}>
-                                  <CalendarIcon size={14} className="date-icon" />
-                                  <input type="date" value={customerDateRange.end} onChange={e => setCustomerDateRange(p => ({...p, end: e.target.value}))} className="modern-date-input" style={{ fontSize: 'var(--text-sm)' }} />
-                                </div>
-                              </div>
-                          </div>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-base)' }}>
-                              <thead>
-                                  <tr style={{ borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>
-                                      <th style={{ padding: '0.75rem' }}>Date</th>
-                                      <th style={{ padding: '0.75rem' }}>Details</th>
-                                      <th style={{ padding: '0.75rem', textAlign: 'right' }}>Amount</th>
-                                      <th style={{ padding: '0.75rem' }}>Mode</th>
-                                      <th style={{ padding: '0.75rem', textAlign: 'center' }}>Action</th>
-                                  </tr>
-                              </thead>
-                              <tbody>
-                                  {customerTransactions.length === 0 ? (
-                                      <tr><td colSpan={5} style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-secondary)' }}>No history found.</td></tr>
-                                  ) : customerTransactions.map((t, idx) => (
-                                      <tr key={`${t.type}-${t.id}`} style={{ borderBottom: 'var(--border-thin) solid var(--border-color)', background: idx % 2 === 0 ? 'transparent' : 'var(--bg-light)' }}>
-                                          <td style={{ padding: '0.75rem' }}>{new Date(t.date).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</td>
-                                          <td style={{ padding: '0.75rem', display: 'flex', alignItems: 'center' }}>
-                                              <span style={{ 
-                                                  padding: '0.15rem 0.4rem', borderRadius: 'var(--radius-xs)', fontSize: '0.7rem', marginRight: '0.5rem',
-                                                  background: t.type === 'bill' ? 'var(--danger-subtle)' : 'var(--success-subtle)',
-                                                  color: t.type === 'bill' ? 'var(--danger)' : 'var(--success)',
-                                                  textTransform: 'uppercase', fontWeight: 'var(--font-bold)'
-                                              }}>
-                                                  {t.type}
-                                              </span>
-                                              {t.details}
-                                          </td>
-                                          <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 'var(--font-bold)' }}>₹{t.amount.toFixed(2)}</td>
-                                          <td style={{ padding: '0.75rem', fontWeight: 'var(--font-medium)' }}>{t.mode}</td>
-                                          <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                                              {t.type === 'bill' && (
-                                                  <button 
-                                                      onClick={() => handleReprintBill(t.id)}
-                                                      style={{ background: 'var(--bg-light)', border: 'var(--border-thin) solid var(--border-color)', borderRadius: 'var(--radius-xs)', padding: '0.3rem', cursor: 'pointer', color: 'var(--text-primary)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                                                      title="Reprint Bill"
-                                                  >
-                                                      <Printer size={14} />
-                                                  </button>
-                                              )}
-                                          </td>
-                                      </tr>
-                                  ))}
-                              </tbody>
-                          </table>
-                      </div>
-                  </div>
+        <div className="modal-overlay modal-overlay--heavy" onClick={() => setSelectedCustomer(null)}>
+          <div className="rep-modal-card" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="rep-modal-head">
+              <div>
+                <h2 className="rep-modal-title">{selectedCustomer.name}</h2>
+                <p className="rep-modal-sub">{selectedCustomer.phone || 'No phone'}</p>
               </div>
+              <button className="icon-btn" onClick={() => setSelectedCustomer(null)}><X size={20} /></button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="rep-modal-body">
+              {/* Summary + quick actions */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-5)', alignItems: 'center' }}>
+                <div className="rep-stat">
+                  <span className="rep-stat-label">Pending Balance</span>
+                  <span className="rep-stat-value" style={{ fontSize: 'var(--text-2xl)' }}>
+                    {fmt(selectedCustomer.credit_balance)}
+                  </span>
+                </div>
+                <div className="rep-modal-actions">
+                  <button className="modern-btn" onClick={handlePrintCustomerReport}>
+                    <Printer size={16} /> Print Statement
+                  </button>
+                  <button className="modern-btn-primary" onClick={() => settleCustomerDue(selectedCustomer.id)} disabled={selectedCustomer.credit_balance <= 0}>
+                    <CheckCircle2 size={16} /> Settle All Due
+                  </button>
+                </div>
+              </div>
+
+              {/* Record Payment */}
+              <div className="rep-filters">
+                <div className="rep-filter-field" style={{ flex: 2 }}>
+                  <label>Record Payment</label>
+                  <input type="number" placeholder="Amount" value={partialPaymentAmount} onChange={e => setPartialPaymentAmount(e.target.value)} className="modern-input" />
+                </div>
+                <div className="rep-filter-field">
+                  <label>Mode</label>
+                  <select value={partialPaymentMode} onChange={e => setPartialPaymentMode(e.target.value)} className="modern-select">
+                    <option>Cash</option>
+                    <option>UPI</option>
+                    <option>Card</option>
+                  </select>
+                </div>
+                <button className="modern-btn-primary" onClick={handlePartialPayment}>
+                  <PlusCircle size={18} /> Record
+                </button>
+              </div>
+
+              {/* Transaction History */}
+              <div>
+                <div className="rep-section-head">
+                  <h4>Transaction History</h4>
+                  <div className="date-range-picker">
+                    <div className="date-input-wrapper" onClick={(e) => { const i = e.currentTarget.querySelector('input'); if (i) i.showPicker(); }}>
+                      <CalendarIcon size={14} className="date-icon" />
+                      <input type="date" value={customerDateRange.start} onChange={e => setCustomerDateRange(p => ({ ...p, start: e.target.value }))} className="modern-date-input" style={{ fontSize: 'var(--text-sm)' }} />
+                    </div>
+                    <span className="date-separator" style={{ fontSize: 'var(--text-xs)' }}>to</span>
+                    <div className="date-input-wrapper" onClick={(e) => { const i = e.currentTarget.querySelector('input'); if (i) i.showPicker(); }}>
+                      <CalendarIcon size={14} className="date-icon" />
+                      <input type="date" value={customerDateRange.end} onChange={e => setCustomerDateRange(p => ({ ...p, end: e.target.value }))} className="modern-date-input" style={{ fontSize: 'var(--text-sm)' }} />
+                    </div>
+                  </div>
+                </div>
+                <div className="rep-table-wrap">
+                  <table className="rep-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Details</th>
+                        <th className="rep-num">Amount</th>
+                        <th>Mode</th>
+                        <th className="rep-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {customerTransactions.length === 0 ? (
+                        <tr className="rep-empty-row"><td colSpan={5}>No history found.</td></tr>
+                      ) : customerTransactions.map((t) => (
+                        <tr key={`${t.type}-${t.id}`}>
+                          <td style={{ whiteSpace: 'nowrap' }}>{new Date(t.date).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</td>
+                          <td>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                              <span className={`badge ${t.type === 'bill' ? 'badge--danger' : 'badge--success'}`} style={{ textTransform: 'uppercase' }}>{t.type}</span>
+                              {t.details}
+                            </span>
+                          </td>
+                          <td className="rep-num rep-strong">{fmt(t.amount)}</td>
+                          <td>{t.mode}</td>
+                          <td className="rep-center">
+                            {t.type === 'bill' && (
+                              <button className="row-action-btn" title="Reprint Bill" onClick={() => handleReprintBill(t.id)}>
+                                <Printer size={14} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </div>
+        </div>
       )}
     </div>
   );

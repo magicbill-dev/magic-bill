@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Database from "@tauri-apps/plugin-sql";
-import { Save, Eye, Type, Settings2, UtensilsCrossed, Scissors, QrCode } from "lucide-react";
+import { Save, Eye, Type, Settings2, UtensilsCrossed, Scissors, QrCode, Search } from "lucide-react";
 
 interface StoreSettings {
   hotel_name: string;
@@ -48,6 +48,7 @@ interface BillConfig {
   dynamic_upi_qr: boolean;
   static_upi_qr: boolean;
   no_qr_print: boolean;
+  search_match_mode: string;
 }
 
 interface KotConfig {
@@ -130,7 +131,8 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
     total_font_size: "12px",
     dynamic_upi_qr: false,
     static_upi_qr: false,
-    no_qr_print: true
+    no_qr_print: true,
+    search_match_mode: "starts"
   });
 
   const [kotConfig, setKotConfig] = useState<KotConfig>({
@@ -241,6 +243,7 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
           dynamic_upi_qr: row.dynamic_upi_qr !== 0 && row.dynamic_upi_qr !== false,
           static_upi_qr: row.static_upi_qr !== 0 && row.static_upi_qr !== false,
           no_qr_print: row.no_qr_print !== 0 && row.no_qr_print !== false,
+          search_match_mode: row.search_match_mode || "starts",
         };
         setBillConfig(b);
         setInitialBillConfig(b);
@@ -296,7 +299,7 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
             show_line_separators = $22, show_token = $23, sep_header = $24, sep_meta = $25,
             sep_token = $26, sep_table_header = $27, sep_table_body = $28, sep_subtotals = $29,
             sep_grand_total = $30, store_name_size = $31, address_size = $32, table_font_size = $33, total_font_size = $34,
-            dynamic_upi_qr = $35, static_upi_qr = $36, no_qr_print = $37
+            dynamic_upi_qr = $35, static_upi_qr = $36, no_qr_print = $37, search_match_mode = $38
           WHERE id = 1`,
           [
             billConfig.footer_message, billConfig.show_gst ? 1 : 0, billConfig.show_fssai ? 1 : 0, billConfig.show_address ? 1 : 0, billConfig.show_phone ? 1 : 0,
@@ -307,7 +310,7 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
             billConfig.show_line_separators ? 1 : 0, billConfig.show_token ? 1 : 0, billConfig.sep_header ? 1 : 0, billConfig.sep_meta ? 1 : 0,
             billConfig.sep_token ? 1 : 0, billConfig.sep_table_header ? 1 : 0, billConfig.sep_table_body ? 1 : 0, billConfig.sep_subtotals ? 1 : 0,
             billConfig.sep_grand_total ? 1 : 0, billConfig.store_name_size, billConfig.address_size, billConfig.table_font_size, billConfig.total_font_size,
-            billConfig.dynamic_upi_qr ? 1 : 0, billConfig.static_upi_qr ? 1 : 0, billConfig.no_qr_print ? 1 : 0
+            billConfig.dynamic_upi_qr ? 1 : 0, billConfig.static_upi_qr ? 1 : 0, billConfig.no_qr_print ? 1 : 0, billConfig.search_match_mode
           ]
         );
       } else {
@@ -316,8 +319,8 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
             id, footer_message, show_gst, show_fssai, show_address, show_phone, printer_size, header_font_family, header_font_size, body_font_family,
             body_font_size, footer_font_family, footer_font_size, gst_enabled, gst_type, show_cashier_name, gst_percentage, row_height, logo_position, logo_size, logo_opacity, logo_base64,
             show_line_separators, show_token, sep_header, sep_meta, sep_token, sep_table_header, sep_table_body, sep_subtotals, sep_grand_total,
-            store_name_size, address_size, table_font_size, total_font_size, dynamic_upi_qr, static_upi_qr, no_qr_print
-          ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37)`,
+            store_name_size, address_size, table_font_size, total_font_size, dynamic_upi_qr, static_upi_qr, no_qr_print, search_match_mode
+          ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38)`,
           [
             billConfig.footer_message, billConfig.show_gst ? 1 : 0, billConfig.show_fssai ? 1 : 0, billConfig.show_address ? 1 : 0, billConfig.show_phone ? 1 : 0,
             billConfig.printer_size, billConfig.header_font_family, billConfig.header_font_size, billConfig.body_font_family,
@@ -327,7 +330,7 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
             billConfig.show_line_separators ? 1 : 0, billConfig.show_token ? 1 : 0, billConfig.sep_header ? 1 : 0, billConfig.sep_meta ? 1 : 0,
             billConfig.sep_token ? 1 : 0, billConfig.sep_table_header ? 1 : 0, billConfig.sep_table_body ? 1 : 0, billConfig.sep_subtotals ? 1 : 0,
             billConfig.sep_grand_total ? 1 : 0, billConfig.store_name_size, billConfig.address_size, billConfig.table_font_size, billConfig.total_font_size,
-            billConfig.dynamic_upi_qr ? 1 : 0, billConfig.static_upi_qr ? 1 : 0, billConfig.no_qr_print ? 1 : 0
+            billConfig.dynamic_upi_qr ? 1 : 0, billConfig.static_upi_qr ? 1 : 0, billConfig.no_qr_print ? 1 : 0, billConfig.search_match_mode
           ]
         );
       }
@@ -443,6 +446,27 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
                   <option value="4px 0">Standard</option>
                   <option value="8px 0">Relaxed</option>
                 </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Billing Item Search */}
+          <div className="sx-group">
+            <div className="sx-group-head"><Search size={14} /> Billing Item Search</div>
+            <div className="sx-grid">
+              <div className="sx-field">
+                <label>Search Match Mode</label>
+                <select
+                  value={billConfig.search_match_mode}
+                  onChange={(e) => setBillConfig({ ...billConfig, search_match_mode: e.target.value })}
+                  className="sx-select"
+                >
+                  <option value="starts">Starts With — show items whose name begins with typed letters</option>
+                  <option value="contains">Contains — show items that include the typed letters anywhere</option>
+                </select>
+                <p className="settings-hint" style={{ marginTop: '0.35rem' }}>
+                  Controls how the search dropdown on the Billing page matches menu items as you type.
+                </p>
               </div>
             </div>
           </div>
