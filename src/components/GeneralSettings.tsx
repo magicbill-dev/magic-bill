@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import Database from "@tauri-apps/plugin-sql";
-import { Save, FolderOpen, Store, HardDrive, Building2, MapPin, Phone, Hash, FileText, Palette, Check } from "lucide-react";
+import { Save, FolderOpen, Store, HardDrive, Building2, MapPin, Phone, Hash, FileText, Palette, Check, RotateCcw, Moon, Sun } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { useTheme, THEMES } from '../theme/ThemeContext';
+import { useTheme, THEMES, getCustomPreview } from '../theme/ThemeContext';
 
 interface StoreSettings {
   hotel_name: string;
@@ -23,7 +23,7 @@ interface GeneralSettingsProps {
 }
 
 export default function GeneralSettings({ db, activeTab, setUnsavedChanges, setTriggerSave }: GeneralSettingsProps) {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, customColors, setCustomColor, resetCustomColors } = useTheme();
   const [settings, setSettings] = useState<StoreSettings>({
     hotel_name: "",
     address: "",
@@ -169,28 +169,95 @@ export default function GeneralSettings({ db, activeTab, setUnsavedChanges, setT
       <div className="sx-group">
         <div className="sx-group-head"><Palette size={14} /> Appearance</div>
         <div className="theme-grid">
-          {THEMES.map((t) => (
-            <div
-              key={t.id}
-              onClick={() => setTheme(t.id)}
-              className={`theme-option ${theme === t.id ? 'active' : ''}`}
-            >
-              {theme === t.id && (
-                <div className="theme-option-check"><Check size={13} /></div>
-              )}
-              <div className="theme-option-preview">
-                <div style={{ backgroundColor: t.preview.bg }} />
-                <div style={{ backgroundColor: t.preview.panelBg }} />
-                <div style={{ backgroundColor: t.preview.headerBg }} />
-                <div style={{ backgroundColor: t.preview.accent }} />
+          {THEMES.map((t) => {
+            // The Custom card mirrors the user's live, derived palette.
+            const preview = t.id === 'custom' ? getCustomPreview(customColors) : t.preview;
+            return (
+              <div
+                key={t.id}
+                onClick={() => setTheme(t.id)}
+                className={`theme-option ${theme === t.id ? 'active' : ''}`}
+              >
+                {theme === t.id && (
+                  <div className="theme-option-check"><Check size={13} /></div>
+                )}
+                <div className="theme-option-preview">
+                  <div style={{ backgroundColor: preview.bg }} />
+                  <div style={{ backgroundColor: preview.panelBg }} />
+                  <div style={{ backgroundColor: preview.headerBg }} />
+                  <div style={{ backgroundColor: preview.accent }} />
+                </div>
+                <div className="theme-option-info">
+                  <span className="theme-option-name">{t.label}</span>
+                  <span className="theme-option-desc">{t.description}</span>
+                </div>
               </div>
-              <div className="theme-option-info">
-                <span className="theme-option-name">{t.label}</span>
-                <span className="theme-option-desc">{t.description}</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
+
+        {/* Custom palette editor — visible only when Custom is the active theme */}
+        {theme === 'custom' && (
+          <div className="custom-palette">
+            <div className="custom-palette-head">
+              <span>Pick a base tint &amp; accent — everything else is auto-balanced for readability</span>
+              <button type="button" className="sx-btn-ghost custom-palette-reset" onClick={resetCustomColors}>
+                <RotateCcw size={14} /> Reset
+              </button>
+            </div>
+
+            <div className="custom-palette-row">
+              {/* Mode toggle */}
+              <div className="custom-mode">
+                <span className="custom-field-label">Mode</span>
+                <div className="custom-mode-seg">
+                  <button
+                    type="button"
+                    className={`custom-mode-btn ${customColors.mode === 'dark' ? 'active' : ''}`}
+                    onClick={() => setCustomColor('mode', 'dark')}
+                  >
+                    <Moon size={14} /> Dark
+                  </button>
+                  <button
+                    type="button"
+                    className={`custom-mode-btn ${customColors.mode === 'light' ? 'active' : ''}`}
+                    onClick={() => setCustomColor('mode', 'light')}
+                  >
+                    <Sun size={14} /> Light
+                  </button>
+                </div>
+              </div>
+
+              {/* Base tint */}
+              <label className="custom-swatch">
+                <input
+                  type="color"
+                  value={customColors.base}
+                  onChange={(e) => setCustomColor('base', e.target.value)}
+                />
+                <div className="custom-swatch-info">
+                  <span className="custom-swatch-name">Base Tint</span>
+                  <span className="custom-swatch-hint">Backgrounds, panels &amp; borders</span>
+                  <span className="custom-swatch-value">{customColors.base.toUpperCase()}</span>
+                </div>
+              </label>
+
+              {/* Accent */}
+              <label className="custom-swatch">
+                <input
+                  type="color"
+                  value={customColors.accent}
+                  onChange={(e) => setCustomColor('accent', e.target.value)}
+                />
+                <div className="custom-swatch-info">
+                  <span className="custom-swatch-name">Accent</span>
+                  <span className="custom-swatch-hint">Buttons, highlights &amp; active states</span>
+                  <span className="custom-swatch-value">{customColors.accent.toUpperCase()}</span>
+                </div>
+              </label>
+            </div>
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>

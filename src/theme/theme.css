@@ -354,96 +354,6 @@
 }
 
 
-/* ---------- INDIGO THEME ---------- */
-[data-theme="indigo"] {
-  /* ---- Backgrounds ---- */
-  --bg-primary:   #0e0e1a;
-  --bg-secondary: #17172b;
-  --bg-tertiary:  #20203a;
-  --bg-hover:     #272746;
-  --bg-elevated:  #1d1d36;
-  --bg-inset:     rgba(0, 0, 0, 0.28);
-
-  /* ---- Text (bright) ---- */
-  --text-primary:   #f3f1fd;
-  --text-secondary: #c5c2e2;
-  --text-tertiary:  #9893ba;
-  --text-inverse:   #0e0e1a;
-
-  /* ---- Borders (bright divisions) ---- */
-  --border-color:   #41416a;
-  --border-hover:   #55557f;
-  --border-subtle:  rgba(180, 170, 240, 0.20);
-
-  /* ---- Accent (violet) ---- */
-  --accent:         #a78bfa;
-  --accent-hover:   #8b5cf6;
-  --accent-fg:      #1e1b4b;
-  --accent-subtle:  rgba(167, 139, 250, 0.16);
-  --accent-muted:   rgba(167, 139, 250, 0.32);
-
-  /* ---- Semantic colours ---- */
-  --success:        #34d399;
-  --success-subtle: rgba(52, 211, 153, 0.14);
-  --success-fg:     #022c22;
-
-  --warning:        #fbbf24;
-  --warning-subtle: rgba(251, 191, 36, 0.14);
-  --warning-fg:     #422006;
-
-  --danger:         #fb7185;
-  --danger-subtle:  rgba(251, 113, 133, 0.14);
-  --danger-fg:      #4c0519;
-
-  --info:           #818cf8;
-  --info-subtle:    rgba(129, 140, 248, 0.14);
-  --info-fg:        #1e1b4b;
-
-  /* ---- Chart palette ---- */
-  --chart-1: #34d399;
-  --chart-2: #818cf8;
-  --chart-3: #fbbf24;
-  --chart-4: #c084fc;
-  --chart-5: #fb7185;
-  --chart-6: #f472b6;
-  --chart-7: #22d3ee;
-  --chart-8: #a78bfa;
-
-  /* ---- Shadows ---- */
-  --shadow-sm:  0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md:  0 4px 12px rgba(0, 0, 0, 0.45);
-  --shadow-lg:  0 10px 25px rgba(0, 0, 0, 0.55);
-  --shadow-xl:  0 20px 40px rgba(0, 0, 0, 0.6);
-
-  /* ---- Overlays ---- */
-  --overlay:        rgba(0, 0, 0, 0.7);
-  --overlay-heavy:  rgba(0, 0, 0, 0.85);
-
-  /* ---- Sidebar ---- */
-  --sidebar-bg:          #0b0b16;
-  --sidebar-text:        #aca8d0;
-  --sidebar-active-text: #a78bfa;
-  --sidebar-active-bg:   rgba(167, 139, 250, 0.16);
-  --sidebar-hover-bg:    rgba(255, 255, 255, 0.07);
-  --sidebar-border:      rgba(180, 170, 240, 0.16);
-
-  /* ---- Legacy aliases ---- */
-  --primary:        var(--accent);
-  --primary-fg:     var(--accent-fg);
-  --primary-hover:  var(--accent-hover);
-  --bg-light:       var(--bg-primary);
-  --bg-white:       var(--bg-secondary);
-  --active-bg:      var(--bg-hover);
-  --tab-active-bg:  var(--bg-primary);
-  --tab-hover-bg:   var(--bg-hover);
-  --sb-text:        var(--sidebar-text);
-  --sb-active-text: var(--sidebar-active-text);
-  --sb-active-bg:   var(--sidebar-active-bg);
-
-  color-scheme: dark;
-}
-
-
 /* ============================================================
  * REUSABLE UTILITY CLASSES (consumed by all components)
  * ============================================================ */
@@ -598,35 +508,35 @@
   align-items: center;
   justify-content: center;
   margin-bottom: 1.5rem;
-  border: 2px solid rgba(248, 113, 113, 0.2);
+  border: 2px solid color-mix(in srgb, var(--danger) 30%, transparent);
 }
 
 @keyframes pulseRed {
-  0%   { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.4); }
-  70%  { box-shadow: 0 0 0 20px rgba(248, 113, 113, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0); }
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 40%, transparent); }
+  70%  { box-shadow: 0 0 0 20px color-mix(in srgb, var(--danger) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 0%, transparent); }
 }
 
 .upgrade-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
-  color: white;
+  background: linear-gradient(135deg, var(--danger) 0%, color-mix(in srgb, var(--danger) 70%, #000) 100%);
+  color: var(--danger-fg);
   font-weight: 600;
   font-size: 1.1rem;
   padding: 0.875rem 2rem;
   border-radius: var(--radius-lg);
   text-decoration: none;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 15px -3px rgba(248, 113, 113, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 15px -3px color-mix(in srgb, var(--danger) 50%, transparent);
+  border: 1px solid var(--border-subtle);
   animation: pulseRed 2s infinite;
 }
 
 .upgrade-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px -5px rgba(248, 113, 113, 0.6);
+  box-shadow: 0 8px 25px -5px color-mix(in srgb, var(--danger) 60%, transparent);
   filter: brightness(1.1);
 }
 

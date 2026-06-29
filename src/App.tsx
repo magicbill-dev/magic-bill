@@ -18,9 +18,7 @@ import {
   FolderOpen,
   DownloadCloud,
   RefreshCw,
-  CheckCircle,
   XCircle,
-  Info,
   UserCircle
 } from "lucide-react";
 import MenuManagement from "./components/MenuManagement";
@@ -42,12 +40,18 @@ function App() {
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [db, setDb] = useState<Database | null>(null);
   const [loading, setLoading] = useState(true);
-  const [updateStatus, setUpdateStatus] = useState<{ status: 'idle' | 'checking' | 'available' | 'downloading' | 'error' | 'not-available', progress: number, errorMsg?: string, version?: string }>({ status: 'idle', progress: 0 });
-  const [silentUpdateAvailable, setSilentUpdateAvailable] = useState(false);
+  // ---- Update system ----
+  // updateInfo: persistent "an update exists" flag that drives the sidebar chip.
+  const [updateInfo, setUpdateInfo] = useState<{ available: boolean; version?: string }>({ available: false });
+  const [checking, setChecking] = useState(false); // inline spinner during a manual check
+  const [install, setInstall] = useState<{ state: 'idle' | 'downloading' | 'error'; progress: number; error?: string }>({ state: 'idle', progress: 0 });
+  const [showUpdateModal, setShowUpdateModal] = useState(false); // install dialog
+  const [showUpdateNotif, setShowUpdateNotif] = useState(false); // auto-check snackbar (skippable)
+  const [updateToast, setUpdateToast] = useState<string | null>(null); // transient status (e.g. "up to date")
   const [dbFolderPath, setDbFolderPath] = useState<string | null>(() => localStorage.getItem("dbFolderPath"));
   const [appVersion, setAppVersion] = useState<string>("");
 
-  // Fetch App Version + silent update check on startup
+  // Fetch app version on startup (no update check here — keeps launch fast)
   useEffect(() => {
     async function fetchVersion() {
       try {
@@ -58,73 +62,87 @@ function App() {
       }
     }
     fetchVersion();
-
-    async function silentUpdateCheck() {
-      try {
-        const update = await check();
-        if (update) setSilentUpdateAvailable(true);
-      } catch {
-        // silent — don't surface startup check errors
-      }
-    }
-    silentUpdateCheck();
   }, []);
 
-  const checkForUpdates = async () => {
+  // Check for an update. `manual` = user clicked the chip (show modal/toast);
+  // otherwise it's the silent auto-check (raises a skippable notification).
+  const runCheck = async (manual: boolean) => {
+    if (checking || install.state === 'downloading') return;
     try {
-      setUpdateStatus({ status: 'checking', progress: 0 });
+      if (manual) setChecking(true);
       const update = await check();
       if (update) {
-        setUpdateStatus({ status: 'available', progress: 0, version: update.version });
+        setUpdateInfo({ available: true, version: update.version });
+        if (manual) setShowUpdateModal(true);
+        else setShowUpdateNotif(true);
       } else {
-        setUpdateStatus({ status: 'not-available', progress: 0 });
+        setUpdateInfo({ available: false });
+        if (manual) setUpdateToast("You're on the latest version ✓");
       }
     } catch (error: any) {
       console.error("Failed to check for updates:", error);
-      setUpdateStatus({ status: 'error', progress: 0, errorMsg: error.message || String(error) });
+      if (manual) setUpdateToast("Couldn't check for updates. Try again later.");
+    } finally {
+      setChecking(false);
     }
   };
 
-  const startUpdate = async () => {
+  const startInstall = async () => {
     try {
-      setUpdateStatus({ status: 'downloading', progress: 0 });
+      setInstall({ state: 'downloading', progress: 0 });
       const update = await check();
-      if (update) {
-          let downloaded = 0;
-          let contentLength = 0;
-          
-          await update.downloadAndInstall((event) => {
-            switch (event.event) {
-              case 'Started':
-                contentLength = event.data.contentLength || 0;
-                break;
-              case 'Progress':
-                downloaded += event.data.chunkLength;
-                if (contentLength > 0) {
-                  setUpdateStatus({ status: 'downloading', progress: Math.round((downloaded / contentLength) * 100) });
-                }
-                break;
-              case 'Finished':
-                setUpdateStatus({ status: 'downloading', progress: 100 });
-                break;
-            }
-          });
-          
-          await relaunch();
+      if (!update) {
+        // No longer available (already updated elsewhere)
+        setInstall({ state: 'idle', progress: 0 });
+        setUpdateInfo({ available: false });
+        setShowUpdateModal(false);
+        return;
       }
+      let downloaded = 0;
+      let contentLength = 0;
+      await update.downloadAndInstall((event) => {
+        switch (event.event) {
+          case 'Started':
+            contentLength = event.data.contentLength || 0;
+            break;
+          case 'Progress':
+            downloaded += event.data.chunkLength;
+            if (contentLength > 0) {
+              setInstall({ state: 'downloading', progress: Math.round((downloaded / contentLength) * 100) });
+            }
+            break;
+          case 'Finished':
+            setInstall({ state: 'downloading', progress: 100 });
+            break;
+        }
+      });
+      await relaunch();
     } catch (error: any) {
-       console.error("Failed to update:", error);
-       setUpdateStatus({ status: 'error', progress: 0, errorMsg: error.message || String(error) });
+      console.error("Failed to update:", error);
+      setInstall({ state: 'error', progress: 0, error: error?.message || String(error) });
     }
   };
+
+  // Auto-check once, 5 minutes after launch (kept off the startup path so the
+  // app loads fast). If an update is found it raises a skippable notification.
+  useEffect(() => {
+    const t = setTimeout(() => { runCheck(false); }, 5 * 60 * 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-dismiss the transient status toast.
+  useEffect(() => {
+    if (!updateToast) return;
+    const t = setTimeout(() => setUpdateToast(null), 3500);
+    return () => clearTimeout(t);
+  }, [updateToast]);
 
   // Initialize Database
   useEffect(() => {
     async function initDb() {
-      if (updateStatus.status !== 'idle' || !dbFolderPath) {
-        if (updateStatus.status === 'idle' && !dbFolderPath) {
-          setLoading(false);
-        }
+      if (!dbFolderPath) {
+        setLoading(false);
         return;
       }
       try {
@@ -274,6 +292,14 @@ function App() {
         await addColumn('bill_settings', 'no_qr_print', 'BOOLEAN', "1");
         await addColumn('bill_settings', 'search_match_mode', 'TEXT', "'starts'");
 
+        // Unified font + per-section bold (applies to Bill and KOT previews)
+        await addColumn('bill_settings', 'global_font_family', 'TEXT', "'monospace'");
+        await addColumn('bill_settings', 'store_name_bold', 'BOOLEAN', "1");
+        await addColumn('bill_settings', 'address_bold', 'BOOLEAN', "0");
+        await addColumn('bill_settings', 'table_bold', 'BOOLEAN', "0");
+        await addColumn('bill_settings', 'total_bold', 'BOOLEAN', "1");
+        await addColumn('bill_settings', 'footer_bold', 'BOOLEAN', "0");
+
         await dbInstance.execute(`
           CREATE TABLE IF NOT EXISTS kot_settings (
             id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -298,6 +324,18 @@ function App() {
         await addColumn('kot_settings', 'sep_table_header', 'BOOLEAN', "1");
         await addColumn('kot_settings', 'sep_table_body', 'BOOLEAN', "1");
         await addColumn('kot_settings', 'table_font_size', 'TEXT', "'12px'");
+
+        // Per-content visibility, sizing and styling for KOT
+        await addColumn('kot_settings', 'show_kot_title', 'BOOLEAN', "1");
+        await addColumn('kot_settings', 'show_bill_no', 'BOOLEAN', "1");
+        await addColumn('kot_settings', 'show_order_type', 'BOOLEAN', "1");
+        await addColumn('kot_settings', 'show_table', 'BOOLEAN', "1");
+        await addColumn('kot_settings', 'show_date', 'BOOLEAN', "1");
+        await addColumn('kot_settings', 'meta_font_size', 'TEXT', "'12px'");
+        await addColumn('kot_settings', 'title_bold', 'BOOLEAN', "1");
+        await addColumn('kot_settings', 'meta_bold', 'BOOLEAN', "0");
+        await addColumn('kot_settings', 'items_bold', 'BOOLEAN', "1");
+        await addColumn('kot_settings', 'meta_two_column', 'BOOLEAN', "1");
 
         await dbInstance.execute(`
           CREATE TABLE IF NOT EXISTS staff (
@@ -389,7 +427,7 @@ function App() {
     }
 
     initDb();
-  }, [dbFolderPath, updateStatus.status]);
+  }, [dbFolderPath]);
 
   // Global Firebase Synchronization
   useEffect(() => {
@@ -506,58 +544,6 @@ function App() {
     { id: "staff", icon: Users, label: "Staff Management" },
   ];
 
-  if (updateStatus.status !== 'idle') {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--bg-light)', color: 'var(--text-primary)', padding: 'var(--space-8)' }}>
-        {updateStatus.status === 'checking' && <RefreshCw size={64} style={{ color: 'var(--primary)', marginBottom: 'var(--space-4)', animation: 'spin 2s linear infinite' }} />}
-        {updateStatus.status === 'downloading' && <DownloadCloud size={64} style={{ color: 'var(--primary)', marginBottom: 'var(--space-4)', animation: 'bounce 2s infinite' }} />}
-        {updateStatus.status === 'available' && <CheckCircle size={64} style={{ color: 'var(--success)', marginBottom: 'var(--space-4)' }} />}
-        {updateStatus.status === 'not-available' && <Info size={64} style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-4)' }} />}
-        {updateStatus.status === 'error' && <XCircle size={64} style={{ color: 'var(--danger)', marginBottom: 'var(--space-4)' }} />}
-        
-        <h1 style={{ fontSize: 'var(--text-3xl)', marginBottom: '0.5rem', textAlign: 'center' }}>
-          {updateStatus.status === 'checking' && 'Checking for updates...'}
-          {updateStatus.status === 'downloading' && 'Downloading Update...'}
-          {updateStatus.status === 'available' && `Update Available (v${updateStatus.version})`}
-          {updateStatus.status === 'not-available' && 'App is up to date'}
-          {updateStatus.status === 'error' && 'Update Failed'}
-        </h1>
-
-        {updateStatus.status === 'downloading' && (
-          <div style={{ width: '300px', backgroundColor: 'var(--bg-white)', borderRadius: 'var(--radius-md)', overflow: 'hidden', height: '20px', marginTop: 'var(--space-4)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)' }}>
-            <div style={{ width: `${updateStatus.progress}%`, backgroundColor: 'var(--primary)', height: '100%', transition: 'width 0.3s ease' }}></div>
-          </div>
-        )}
-        {updateStatus.status === 'downloading' && <p style={{ marginTop: '0.5rem', fontWeight: 'bold' }}>{updateStatus.progress}%</p>}
-
-        {updateStatus.status === 'error' && (
-          <p style={{ color: 'var(--danger)', marginTop: 'var(--space-4)', maxWidth: '400px', textAlign: 'center' }}>
-            {updateStatus.errorMsg}
-          </p>
-        )}
-
-        <div style={{ display: 'flex', gap: 'var(--space-4)', marginTop: '2rem' }}>
-          {updateStatus.status === 'available' && (
-            <button 
-              onClick={startUpdate}
-              style={{ padding: '0.75rem 1.5rem', fontSize: 'var(--text-base)', backgroundColor: 'var(--primary)', color: 'var(--primary-fg)', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontWeight: 'bold' }}
-            >
-              Download & Install
-            </button>
-          )}
-          {(updateStatus.status === 'available' || updateStatus.status === 'not-available' || updateStatus.status === 'error') && (
-            <button 
-              onClick={() => setUpdateStatus({ status: 'idle', progress: 0 })}
-              style={{ padding: '0.75rem 1.5rem', fontSize: 'var(--text-base)', backgroundColor: 'transparent', color: 'var(--text-primary)', border: 'var(--border-thin) solid var(--border-color)', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontWeight: 'bold' }}
-            >
-              Close
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   if (!dbFolderPath) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--bg-light)', color: 'var(--text-primary)', padding: 'var(--space-8)' }}>
@@ -633,16 +619,32 @@ function App() {
 
           <div className="sidebar-footer-divider" />
 
-          {appVersion && <span className="sidebar-version">v{appVersion}</span>}
-
-          <button
-            className={`sidebar-update-btn ${silentUpdateAvailable ? 'has-update' : ''}`}
-            onClick={checkForUpdates}
-            title={silentUpdateAvailable ? "New update available — click to install" : "Check for updates"}
-          >
-            {silentUpdateAvailable && <span className="update-notification-dot" />}
-            Check for Updates
-          </button>
+          {updateInfo.available ? (
+            <button
+              className="update-chip available"
+              onClick={() => setShowUpdateModal(true)}
+              title={`Update available — v${updateInfo.version}. Click to install.`}
+            >
+              <DownloadCloud size={16} className="update-chip-icon" />
+              <span className="update-chip-text">
+                <span className="update-chip-label">Update</span>
+                <span className="update-chip-ver">v{updateInfo.version}</span>
+              </span>
+            </button>
+          ) : (
+            <button
+              className="update-chip"
+              onClick={() => runCheck(true)}
+              disabled={checking}
+              title="Check for updates"
+            >
+              <RefreshCw size={14} className={`update-chip-icon ${checking ? 'spin' : ''}`} />
+              <span className="update-chip-text">
+                <span className="update-chip-ver">{appVersion ? `v${appVersion}` : '—'}</span>
+                <span className="update-chip-label">{checking ? 'Checking…' : 'Check updates'}</span>
+              </span>
+            </button>
+          )}
         </div>
       </aside>
 
@@ -787,6 +789,73 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Update install dialog (overlay — does not take over the whole app) */}
+      {showUpdateModal && (
+        <div className="modal-overlay modal-overlay--heavy">
+          <div className="modal-card update-modal">
+            {install.state === 'downloading' ? (
+              <>
+                <div className="update-modal-icon-wrap">
+                  <DownloadCloud size={36} />
+                </div>
+                <h3 className="update-modal-title">Updating Magic Bill…</h3>
+                <p className="update-modal-text">Please don't close the app — it will restart automatically when finished.</p>
+                <div className="update-progress">
+                  <div className="update-progress-bar" style={{ width: `${install.progress}%` }} />
+                </div>
+                <span className="update-progress-pct">{install.progress}%</span>
+              </>
+            ) : install.state === 'error' ? (
+              <>
+                <div className="update-modal-icon-wrap danger">
+                  <XCircle size={36} />
+                </div>
+                <h3 className="update-modal-title">Update Failed</h3>
+                <p className="update-modal-text update-modal-err">{install.error}</p>
+                <div className="update-modal-actions">
+                  <button className="update-btn-ghost" onClick={() => { setInstall({ state: 'idle', progress: 0 }); setShowUpdateModal(false); }}>Close</button>
+                  <button className="update-btn-primary" onClick={startInstall}>Retry</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="update-modal-icon-wrap accent">
+                  <DownloadCloud size={36} />
+                </div>
+                <h3 className="update-modal-title">Update Available</h3>
+                <p className="update-modal-text">
+                  Magic Bill <strong>v{updateInfo.version}</strong> is ready to install. The app will restart to finish the update.
+                </p>
+                <div className="update-modal-actions">
+                  <button className="update-btn-ghost" onClick={() => setShowUpdateModal(false)}>Later</button>
+                  <button className="update-btn-primary" onClick={startInstall}>
+                    <DownloadCloud size={16} /> Download &amp; Install
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Skippable notification raised by the silent auto-check */}
+      {showUpdateNotif && (
+        <div className="update-snackbar">
+          <DownloadCloud size={22} className="update-snackbar-icon" />
+          <div className="update-snackbar-text">
+            <strong>Update available</strong>
+            <span>Magic Bill v{updateInfo.version} is ready to install.</span>
+          </div>
+          <div className="update-snackbar-actions">
+            <button className="update-snackbar-btn primary" onClick={() => { setShowUpdateNotif(false); setShowUpdateModal(true); }}>Update</button>
+            <button className="update-snackbar-btn" onClick={() => setShowUpdateNotif(false)}>Skip</button>
+          </div>
+        </div>
+      )}
+
+      {/* Transient status (e.g. "you're on the latest version") */}
+      {updateToast && <div className="toast-notification">{updateToast}</div>}
     </div>
   );
 }

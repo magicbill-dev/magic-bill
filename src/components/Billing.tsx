@@ -200,6 +200,11 @@ export default function Billing({ db }: BillingProps) {
             dynamic_upi_qr: row.dynamic_upi_qr !== 0 && row.dynamic_upi_qr !== false && row.dynamic_upi_qr !== "0",
             static_upi_qr: row.static_upi_qr !== 0 && row.static_upi_qr !== false && row.static_upi_qr !== "0",
             no_qr_print: row.no_qr_print !== 0 && row.no_qr_print !== false && row.no_qr_print !== "0",
+            store_name_bold: row.store_name_bold !== 0 && row.store_name_bold !== false && row.store_name_bold !== "0",
+            address_bold: row.address_bold === 1 || row.address_bold === true || row.address_bold === "1",
+            table_bold: row.table_bold === 1 || row.table_bold === true || row.table_bold === "1",
+            total_bold: row.total_bold !== 0 && row.total_bold !== false && row.total_bold !== "0",
+            footer_bold: row.footer_bold === 1 || row.footer_bold === true || row.footer_bold === "1",
           });
         }
 
@@ -214,7 +219,16 @@ export default function Billing({ db }: BillingProps) {
             sep_header: row.sep_header !== 0 && row.sep_header !== false,
             sep_meta: row.sep_meta !== 0 && row.sep_meta !== false,
             sep_table_header: row.sep_table_header !== 0 && row.sep_table_header !== false,
-            sep_table_body: row.sep_table_body !== 0 && row.sep_table_body !== false
+            sep_table_body: row.sep_table_body !== 0 && row.sep_table_body !== false,
+            show_kot_title: row.show_kot_title !== 0 && row.show_kot_title !== false && row.show_kot_title !== "0",
+            show_bill_no: row.show_bill_no !== 0 && row.show_bill_no !== false && row.show_bill_no !== "0",
+            show_order_type: row.show_order_type !== 0 && row.show_order_type !== false && row.show_order_type !== "0",
+            show_table: row.show_table !== 0 && row.show_table !== false && row.show_table !== "0",
+            show_date: row.show_date !== 0 && row.show_date !== false && row.show_date !== "0",
+            title_bold: row.title_bold !== 0 && row.title_bold !== false && row.title_bold !== "0",
+            meta_bold: row.meta_bold === 1 || row.meta_bold === true || row.meta_bold === "1",
+            items_bold: row.items_bold !== 0 && row.items_bold !== false && row.items_bold !== "0",
+            meta_two_column: row.meta_two_column !== 0 && row.meta_two_column !== false && row.meta_two_column !== "0"
           });
         }
 
@@ -307,12 +321,29 @@ export default function Billing({ db }: BillingProps) {
 
     const searchLower = searchTerm.toLowerCase();
     const matchMode = billSettings?.search_match_mode || "starts";
-    const filtered = allItems.filter(item => {
-      const nameLower = item.name.toLowerCase();
-      return matchMode === "contains"
-        ? nameLower.includes(searchLower)
-        : nameLower.startsWith(searchLower);
-    }).slice(0, 10); // Limit to 10 suggestions
+
+    let matched;
+    if (matchMode === "contains") {
+      // Rank matches so the most relevant show first:
+      //   0 = name starts with the query        (e.g. "c" -> "chicken …")
+      //   1 = a word in the name starts with it  (e.g. "bir" -> "chicken biriyani")
+      //   2 = appears somewhere inside a word    (e.g. "c" -> "apple jui[c]e")
+      // A stable sort keeps the original (alphabetical) order within each tier.
+      matched = allItems
+        .map(item => {
+          const idx = item.name.toLowerCase().indexOf(searchLower);
+          if (idx === -1) return null;
+          const score = idx === 0 ? 0 : (item.name[idx - 1] === " " ? 1 : 2);
+          return { item, score };
+        })
+        .filter((m): m is { item: typeof allItems[number]; score: number } => m !== null)
+        .sort((a, b) => a.score - b.score)
+        .map(m => m.item);
+    } else {
+      matched = allItems.filter(item => item.name.toLowerCase().startsWith(searchLower));
+    }
+
+    const filtered = matched.slice(0, 10); // Limit to 10 suggestions
 
     setSuggestions(filtered);
     setSelectedSuggestionIndex(filtered.length > 0 ? 0 : -1);
@@ -408,12 +439,6 @@ export default function Billing({ db }: BillingProps) {
     }
   };
 
-  const centerText = (text: any, width: number) => {
-    const str = String(text || "");
-    const spaces = Math.max(0, Math.floor((width - str.length) / 2));
-    return " ".repeat(spaces) + str;
-  };
-
   const padRight = (text: any, width: number) => {
     const str = String(text || "");
     if (str.length >= width) return str.substring(0, width);
@@ -425,6 +450,25 @@ export default function Billing({ db }: BillingProps) {
     if (str.length >= width) return str.substring(0, width);
     return str.padStart(width);
   };
+
+  // --- ESC/POS inline styling helpers (size tiers + bold) ---
+  const SIZE_RESET = "\x1D\x21\x00";
+  const BOLD_ON = "\x1B\x45\x01";
+  const BOLD_OFF = "\x1B\x45\x00";
+  // px -> ESC/POS GS ! n. allowWidth=false keeps column math intact (height only).
+  // Double-WIDTH crowds the line horizontally, so it is reserved for the very
+  // largest sizes (>=24px) and only on free-flow lines (allowWidth=true).
+  // 16-20px grow taller only (double-height) — crisp and uncramped.
+  const sizeCmd = (size?: string, allowWidth = true) => {
+    const px = parseInt(String(size || "12"), 10) || 12;
+    if (allowWidth && px >= 24) return "\x1D\x21\x11"; // double width + height (headings only)
+    if (px >= 16) return "\x1D\x21\x01"; // double height only
+    return "\x1D\x21\x00"; // normal
+  };
+  // Wrap an already-padded line with size + bold codes (codes are non-printing).
+  const styled = (line: string, size?: string, bold?: boolean, allowWidth = true) =>
+    `${sizeCmd(size, allowWidth)}${bold ? BOLD_ON : ""}${line}${bold ? BOLD_OFF : ""}${SIZE_RESET}`;
+  const isOn = (v: any) => v !== 0 && v !== false && v !== "0";
 
   const generateESCPOSImage = async (base64: string, sizePercent: number, paperSize: string): Promise<number[]> => {
     return new Promise((resolve) => {
@@ -724,28 +768,53 @@ export default function Billing({ db }: BillingProps) {
              if (kotSettings?.sep_token !== false) text += `${sep}\n`;
          }
          
-         text += `${centerText("--- KOT ---", lineWidth)}\n`;
-         if (categoryName) {
-             text += `${centerText(`[ ${categoryName} ]`, lineWidth)}\n`;
+         if (kotSettings?.show_kot_title !== false) {
+             text += "\x1B\x61\x01"; // center (printer-side)
+             text += `${styled("--- KOT ---", kotSettings?.header_font_size, isOn(kotSettings?.title_bold ?? 1))}\n`;
+             if (categoryName) {
+                 text += `[ ${categoryName} ]\n`;
+             }
+             text += "\x1B\x61\x00"; // left
+             if (kotSettings?.sep_header !== false) text += `${sep}\n`;
          }
-         if (kotSettings?.sep_header !== false) text += `${sep}\n`;
 
-         text += `Bill No: ${billNoToPrint}\n`;
-         text += `Order Type: ${orderType}\n`;
-         if (tableNumber) text += `Table: ${tableNumber}\n`;
-         text += `Date: ${new Date().toLocaleString()}\n`;
-         
-         if (kotSettings?.sep_meta !== false) text += `${sep}\n`;
-         
-         text += `${padRight("Item", lineWidth - 5)} ${padLeft("Qty", 4)}\n`;
+         // Meta block — per-content visibility, optional 2-column packing
+         const metaSize = kotSettings?.meta_font_size || kotSettings?.table_font_size;
+         const metaBold = isOn(kotSettings?.meta_bold);
+         const metaParts: string[] = [];
+         if (kotSettings?.show_bill_no !== false) metaParts.push(`Bill No: ${billNoToPrint}`);
+         if (kotSettings?.show_order_type !== false) metaParts.push(`Order: ${orderType}`);
+         if (kotSettings?.show_table !== false && tableNumber) metaParts.push(`Table: ${tableNumber}`);
+         if (kotSettings?.show_date !== false) metaParts.push(`Date: ${new Date().toLocaleString()}`);
+
+         const metaTwoCol = kotSettings?.meta_two_column !== false;
+         if (metaParts.length > 0) {
+             if (metaTwoCol) {
+                 for (let i = 0; i < metaParts.length; i += 2) {
+                     const left = metaParts[i];
+                     const right = metaParts[i + 1] || "";
+                     const line = right
+                         ? `${padRight(left, Math.floor(lineWidth / 2))}${padLeft(right, Math.ceil(lineWidth / 2))}`
+                         : left;
+                     text += `${styled(line, metaSize, metaBold, false)}\n`;
+                 }
+             } else {
+                 metaParts.forEach(m => { text += `${styled(m, metaSize, metaBold, false)}\n`; });
+             }
+             if (kotSettings?.sep_meta !== false) text += `${sep}\n`;
+         }
+
+         const itemsBold = isOn(kotSettings?.items_bold ?? 1);
+         const itemsSize = kotSettings?.table_font_size;
+         text += `${styled(`${padRight("Item", lineWidth - 5)} ${padLeft("Qty", 4)}`, itemsSize, itemsBold, false)}\n`;
          if (kotSettings?.sep_table_header !== false) text += `${sep}\n`;
-         
+
          ticketItems.forEach(item => {
            const nameStr = padRight(item.name, lineWidth - 5);
            const qtyStr = padLeft(item.quantity?.toString(), 4);
-           text += `${nameStr} ${qtyStr}\n`;
+           text += `${styled(`${nameStr} ${qtyStr}`, itemsSize, itemsBold, false)}\n`;
          });
-         
+
          if (kotSettings?.sep_table_body !== false) text += `${sep}\n`;
          text += `\n\n\n`;
          text += "\x1B\x61\x00"; 
@@ -1214,29 +1283,22 @@ export default function Billing({ db }: BillingProps) {
           }
           
           // --- HEADER SECTION ---
-          // Header Font Size mapping
-          const headerSize = billSettings?.header_font_size || "16px";
-          if (headerSize === "24px" || headerSize === "28px" || headerSize === "20px") {
-              // Double width + Double height
-              text += "\x1D\x21\x11";
-          } else if (headerSize === "18px" || headerSize === "16px") {
-              // Double height
-              text += "\x1D\x21\x01";
-          }
-          
+          const storeNameSize = billSettings?.store_name_size || "16px";
+          const storeNameBold = isOn(billSettings?.store_name_bold ?? 1);
+          const addrSize = billSettings?.address_size || "12px";
+          const addrBold = isOn(billSettings?.address_bold);
+
           // Center alignment for header
           text += "\x1B\x61\x01";
-          
-          if (storeSettings?.hotel_name) text += `${String(storeSettings.hotel_name).toUpperCase()}\n`;
-          
-          // Reset to normal size for the rest of the header (address, etc.) if it was large, or just keep it.
-          // Usually Address and Tel are smaller than the main Hotel Name.
-          text += "\x1D\x21\x00"; 
-          
-          if (billSettings?.show_address !== false && storeSettings?.address) text += `${storeSettings.address}\n`;
-          if (billSettings?.show_phone !== false && storeSettings?.phone_number) text += `Tel: ${storeSettings.phone_number}\n`;
-          if (billSettings?.show_gst !== false && storeSettings?.gst_number) text += `GSTIN: ${storeSettings.gst_number}\n`;
-          if (billSettings?.show_fssai !== false && storeSettings?.fssai_number) text += `FSSAI: ${storeSettings.fssai_number}\n`;
+
+          if (storeSettings?.hotel_name) {
+              text += `${styled(String(storeSettings.hotel_name).toUpperCase(), storeNameSize, storeNameBold)}\n`;
+          }
+
+          if (billSettings?.show_address !== false && storeSettings?.address) text += `${styled(storeSettings.address, addrSize, addrBold, false)}\n`;
+          if (billSettings?.show_phone !== false && storeSettings?.phone_number) text += `${styled(`Tel: ${storeSettings.phone_number}`, addrSize, addrBold, false)}\n`;
+          if (billSettings?.show_gst !== false && storeSettings?.gst_number) text += `${styled(`GSTIN: ${storeSettings.gst_number}`, addrSize, addrBold, false)}\n`;
+          if (billSettings?.show_fssai !== false && storeSettings?.fssai_number) text += `${styled(`FSSAI: ${storeSettings.fssai_number}`, addrSize, addrBold, false)}\n`;
           text += `\n`;
           
           // --- BODY SECTION ---
@@ -1248,18 +1310,18 @@ export default function Billing({ db }: BillingProps) {
           const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
           const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
           
-          text += `${padRight(`Bill No: ${finalBillNo}`, Math.floor(lineWidth/2))}${padLeft(`Date: ${dateStr}`, Math.ceil(lineWidth/2))}\n`;
-          
+          text += `${styled(`${padRight(`Bill No: ${finalBillNo}`, Math.floor(lineWidth/2))}${padLeft(`Date: ${dateStr}`, Math.ceil(lineWidth/2))}`, addrSize, addrBold, false)}\n`;
+
           let timeCashierLine = padRight(`Time: ${timeStr}`, Math.floor(lineWidth/2));
           if (billSettings?.show_cashier_name !== false) {
              timeCashierLine += padLeft(`Cashier: Admin`, Math.ceil(lineWidth/2));
           }
-          text += timeCashierLine + "\n";
+          text += `${styled(timeCashierLine, addrSize, addrBold, false)}\n`;
 
           if (orderType === "Table" && tableNumber) {
-             text += `${padRight(`Order: Table ${tableNumber}`, lineWidth)}\n`;
+             text += `${styled(padRight(`Order: Table ${tableNumber}`, lineWidth), addrSize, addrBold, false)}\n`;
           } else if (orderType !== "Self Service") {
-             text += `${padRight(`Order: ${orderType}`, lineWidth)}\n`;
+             text += `${styled(padRight(`Order: ${orderType}`, lineWidth), addrSize, addrBold, false)}\n`;
           }
           
           if (billSettings?.sep_meta !== false) text += `${sep}\n`;
@@ -1281,50 +1343,52 @@ export default function Billing({ db }: BillingProps) {
           }
           
           // Columns: Item (flex), Qty (4), Price (8), Amt (8)
+          const tableSize = billSettings?.table_font_size || "12px";
+          const tableBold = isOn(billSettings?.table_bold);
+          const totalSize = billSettings?.total_font_size || "12px";
+          const totalBold = isOn(billSettings?.total_bold ?? 1);
           const itemWidth = lineWidth - 4 - 8 - 8 - 3; // -3 for spaces
-          text += `${padRight("Item", itemWidth)} ${padLeft("Qty", 4)} ${padLeft("Price", 8)} ${padLeft("Amt", 8)}\n`;
+          text += `${styled(`${padRight("Item", itemWidth)} ${padLeft("Qty", 4)} ${padLeft("Price", 8)} ${padLeft("Amt", 8)}`, tableSize, tableBold, false)}\n`;
           if (billSettings?.sep_table_header !== false) text += `${sep}\n`;
-          
+
           cart.forEach(item => {
               let nameStr = String(item.name || "");
               if (nameStr.length > itemWidth) {
                   // If name is too long, print it on one line, and details on next
-                  text += `${nameStr}\n`;
-                  text += `${padRight("", itemWidth)} ${padLeft(item.quantity?.toString() || "1", 4)} ${padLeft(item.price?.toFixed(2) || "0.00", 8)} ${padLeft(((item.quantity || 1) * (item.price || 0)).toFixed(2), 8)}\n`;
+                  text += `${styled(nameStr, tableSize, tableBold, false)}\n`;
+                  text += `${styled(`${padRight("", itemWidth)} ${padLeft(item.quantity?.toString() || "1", 4)} ${padLeft(item.price?.toFixed(2) || "0.00", 8)} ${padLeft(((item.quantity || 1) * (item.price || 0)).toFixed(2), 8)}`, tableSize, tableBold, false)}\n`;
               } else {
                   nameStr = padRight(nameStr, itemWidth);
                   const qtyStr = padLeft(item.quantity?.toString() || "1", 4);
                   const priceStr = padLeft(item.price?.toFixed(2) || "0.00", 8);
                   const amtStr = padLeft(((item.quantity || 1) * (item.price || 0)).toFixed(2), 8);
-                  text += `${nameStr} ${qtyStr} ${priceStr} ${amtStr}\n`;
+                  text += `${styled(`${nameStr} ${qtyStr} ${priceStr} ${amtStr}`, tableSize, tableBold, false)}\n`;
               }
           });
           if (billSettings?.sep_table_body !== false) text += `${sep}\n`;
-          
-          text += `${padRight("Subtotal:", lineWidth - 12)}${padLeft(subtotal.toFixed(2), 12)}\n`;
+
+          text += `${styled(`${padRight("Subtotal:", lineWidth - 12)}${padLeft(subtotal.toFixed(2), 12)}`, totalSize, totalBold, false)}\n`;
           if (isGstEnabled) {
                if (gstType === "Inclusive") {
-                   text += `(Includes Rs. ${gst.toFixed(2)} GST)\n`;
+                   text += `${styled(`(Includes Rs. ${gst.toFixed(2)} GST)`, totalSize, totalBold, false)}\n`;
                } else {
-                   text += `${padRight(`GST (${gstPercentage}%):`, lineWidth - 12)}${padLeft(gst.toFixed(2), 12)}\n`;
+                   text += `${styled(`${padRight(`GST (${gstPercentage}%):`, lineWidth - 12)}${padLeft(gst.toFixed(2), 12)}`, totalSize, totalBold, false)}\n`;
                }
           }
           if (billSettings?.sep_subtotals !== false) text += `${sep}\n`;
-          
-          // Grand Total bold
-          text += "\x1B\x45\x01"; // Bold ON
-          text += `${padRight("GRAND TOTAL:", lineWidth - 14)}${padLeft(`Rs. ${total.toFixed(2)}`, 14)}\n`;
-          text += "\x1B\x45\x00"; // Bold OFF
-          
+
+          // Grand Total — always bold, honors Totals size
+          text += `${styled(`${padRight("GRAND TOTAL:", lineWidth - 14)}${padLeft(`Rs. ${total.toFixed(2)}`, 14)}`, totalSize, true, false)}\n`;
+
           if (billSettings?.sep_grand_total !== false) text += `${sep}\n`;
           text += `\n`;
-          
+
           // --- FOOTER SECTION ---
           // Center align
           text += "\x1B\x61\x01";
           const footerMsg = billSettings?.footer_message || "Thank you! Visit again.";
-          text += `${footerMsg}\n\n`; // Reduced newlines here to leave space for QR
-          
+          text += `${styled(footerMsg, billSettings?.footer_font_size, isOn(billSettings?.footer_bold))}\n\n`; // Reduced newlines here to leave space for QR
+
           // Reset alignment
           text += "\x1B\x61\x00";
 

@@ -49,6 +49,12 @@ interface BillConfig {
   static_upi_qr: boolean;
   no_qr_print: boolean;
   search_match_mode: string;
+  global_font_family: string;
+  store_name_bold: boolean;
+  address_bold: boolean;
+  table_bold: boolean;
+  total_bold: boolean;
+  footer_bold: boolean;
 }
 
 interface KotConfig {
@@ -65,6 +71,16 @@ interface KotConfig {
   sep_table_header: boolean;
   sep_table_body: boolean;
   table_font_size: string;
+  show_kot_title: boolean;
+  show_bill_no: boolean;
+  show_order_type: boolean;
+  show_table: boolean;
+  show_date: boolean;
+  meta_font_size: string;
+  title_bold: boolean;
+  meta_bold: boolean;
+  items_bold: boolean;
+  meta_two_column: boolean;
 }
 
 interface BillSettingsProps {
@@ -84,6 +100,42 @@ const fontFamilies = [
 ];
 
 const fontSizes = ["10px", "12px", "14px", "16px", "18px", "20px", "24px", "28px"];
+
+// Compact -/+ stepper that walks through the fontSizes scale
+function SizeStepper({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const idx = Math.max(0, fontSizes.indexOf(value));
+  const dec = () => onChange(fontSizes[Math.max(0, idx - 1)]);
+  const inc = () => onChange(fontSizes[Math.min(fontSizes.length - 1, idx + 1)]);
+  return (
+    <div className="sx-stepper">
+      <button type="button" onClick={dec} disabled={idx <= 0} aria-label="Decrease size">−</button>
+      <span>{value.replace("px", "")}px</span>
+      <button type="button" onClick={inc} disabled={idx >= fontSizes.length - 1} aria-label="Increase size">+</button>
+    </div>
+  );
+}
+
+// One row: section label + size stepper + optional bold toggle
+function StyleRow({ label, size, onSize, bold, onBold, showBold = true }: {
+  label: string;
+  size: string;
+  onSize: (v: string) => void;
+  bold?: boolean;
+  onBold?: (v: boolean) => void;
+  showBold?: boolean;
+}) {
+  return (
+    <div className="sx-style-row">
+      <span className="sx-style-label">{label}</span>
+      <SizeStepper value={size} onChange={onSize} />
+      {showBold && (
+        <label className="sx-check sx-check-inline">
+          <input type="checkbox" checked={!!bold} onChange={(e) => onBold?.(e.target.checked)} /> Bold
+        </label>
+      )}
+    </div>
+  );
+}
 
 export default function BillSettings({ db, activeTab, setUnsavedChanges, setTriggerSave }: BillSettingsProps) {
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({
@@ -132,7 +184,13 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
     dynamic_upi_qr: false,
     static_upi_qr: false,
     no_qr_print: true,
-    search_match_mode: "starts"
+    search_match_mode: "starts",
+    global_font_family: "monospace",
+    store_name_bold: true,
+    address_bold: false,
+    table_bold: false,
+    total_bold: true,
+    footer_bold: false
   });
 
   const [kotConfig, setKotConfig] = useState<KotConfig>({
@@ -148,7 +206,17 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
     sep_meta: true,
     sep_table_header: true,
     sep_table_body: true,
-    table_font_size: "12px"
+    table_font_size: "12px",
+    show_kot_title: true,
+    show_bill_no: true,
+    show_order_type: true,
+    show_table: true,
+    show_date: true,
+    meta_font_size: "12px",
+    title_bold: true,
+    meta_bold: false,
+    items_bold: true,
+    meta_two_column: true
   });
 
   const [loading, setLoading] = useState(false);
@@ -244,6 +312,12 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
           static_upi_qr: row.static_upi_qr !== 0 && row.static_upi_qr !== false,
           no_qr_print: row.no_qr_print !== 0 && row.no_qr_print !== false,
           search_match_mode: row.search_match_mode || "starts",
+          global_font_family: row.global_font_family || row.body_font_family || "monospace",
+          store_name_bold: row.store_name_bold !== 0 && row.store_name_bold !== false,
+          address_bold: row.address_bold === 1 || row.address_bold === true,
+          table_bold: row.table_bold === 1 || row.table_bold === true,
+          total_bold: row.total_bold !== 0 && row.total_bold !== false,
+          footer_bold: row.footer_bold === 1 || row.footer_bold === true,
         };
         setBillConfig(b);
         setInitialBillConfig(b);
@@ -267,7 +341,17 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
           sep_meta: row.sep_meta !== 0 && row.sep_meta !== false,
           sep_table_header: row.sep_table_header !== 0 && row.sep_table_header !== false,
           sep_table_body: row.sep_table_body !== 0 && row.sep_table_body !== false,
-          table_font_size: row.table_font_size || "12px"
+          table_font_size: row.table_font_size || "12px",
+          show_kot_title: row.show_kot_title !== 0 && row.show_kot_title !== false,
+          show_bill_no: row.show_bill_no !== 0 && row.show_bill_no !== false,
+          show_order_type: row.show_order_type !== 0 && row.show_order_type !== false,
+          show_table: row.show_table !== 0 && row.show_table !== false,
+          show_date: row.show_date !== 0 && row.show_date !== false,
+          meta_font_size: row.meta_font_size || "12px",
+          title_bold: row.title_bold !== 0 && row.title_bold !== false,
+          meta_bold: row.meta_bold === 1 || row.meta_bold === true,
+          items_bold: row.items_bold !== 0 && row.items_bold !== false,
+          meta_two_column: row.meta_two_column !== 0 && row.meta_two_column !== false
         };
         setKotConfig(k);
         setInitialKotConfig(k);
@@ -299,7 +383,9 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
             show_line_separators = $22, show_token = $23, sep_header = $24, sep_meta = $25,
             sep_token = $26, sep_table_header = $27, sep_table_body = $28, sep_subtotals = $29,
             sep_grand_total = $30, store_name_size = $31, address_size = $32, table_font_size = $33, total_font_size = $34,
-            dynamic_upi_qr = $35, static_upi_qr = $36, no_qr_print = $37, search_match_mode = $38
+            dynamic_upi_qr = $35, static_upi_qr = $36, no_qr_print = $37, search_match_mode = $38,
+            global_font_family = $39, header_font_family = $39, body_font_family = $39, footer_font_family = $39,
+            store_name_bold = $40, address_bold = $41, table_bold = $42, total_bold = $43, footer_bold = $44
           WHERE id = 1`,
           [
             billConfig.footer_message, billConfig.show_gst ? 1 : 0, billConfig.show_fssai ? 1 : 0, billConfig.show_address ? 1 : 0, billConfig.show_phone ? 1 : 0,
@@ -310,7 +396,8 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
             billConfig.show_line_separators ? 1 : 0, billConfig.show_token ? 1 : 0, billConfig.sep_header ? 1 : 0, billConfig.sep_meta ? 1 : 0,
             billConfig.sep_token ? 1 : 0, billConfig.sep_table_header ? 1 : 0, billConfig.sep_table_body ? 1 : 0, billConfig.sep_subtotals ? 1 : 0,
             billConfig.sep_grand_total ? 1 : 0, billConfig.store_name_size, billConfig.address_size, billConfig.table_font_size, billConfig.total_font_size,
-            billConfig.dynamic_upi_qr ? 1 : 0, billConfig.static_upi_qr ? 1 : 0, billConfig.no_qr_print ? 1 : 0, billConfig.search_match_mode
+            billConfig.dynamic_upi_qr ? 1 : 0, billConfig.static_upi_qr ? 1 : 0, billConfig.no_qr_print ? 1 : 0, billConfig.search_match_mode,
+            billConfig.global_font_family, billConfig.store_name_bold ? 1 : 0, billConfig.address_bold ? 1 : 0, billConfig.table_bold ? 1 : 0, billConfig.total_bold ? 1 : 0, billConfig.footer_bold ? 1 : 0
           ]
         );
       } else {
@@ -319,18 +406,20 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
             id, footer_message, show_gst, show_fssai, show_address, show_phone, printer_size, header_font_family, header_font_size, body_font_family,
             body_font_size, footer_font_family, footer_font_size, gst_enabled, gst_type, show_cashier_name, gst_percentage, row_height, logo_position, logo_size, logo_opacity, logo_base64,
             show_line_separators, show_token, sep_header, sep_meta, sep_token, sep_table_header, sep_table_body, sep_subtotals, sep_grand_total,
-            store_name_size, address_size, table_font_size, total_font_size, dynamic_upi_qr, static_upi_qr, no_qr_print, search_match_mode
-          ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38)`,
+            store_name_size, address_size, table_font_size, total_font_size, dynamic_upi_qr, static_upi_qr, no_qr_print, search_match_mode,
+            global_font_family, store_name_bold, address_bold, table_bold, total_bold, footer_bold
+          ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44)`,
           [
             billConfig.footer_message, billConfig.show_gst ? 1 : 0, billConfig.show_fssai ? 1 : 0, billConfig.show_address ? 1 : 0, billConfig.show_phone ? 1 : 0,
-            billConfig.printer_size, billConfig.header_font_family, billConfig.header_font_size, billConfig.body_font_family,
-            billConfig.body_font_size, billConfig.footer_font_family, billConfig.footer_font_size, billConfig.gst_enabled ? 1 : 0,
+            billConfig.printer_size, billConfig.global_font_family, billConfig.header_font_size, billConfig.global_font_family,
+            billConfig.body_font_size, billConfig.global_font_family, billConfig.footer_font_size, billConfig.gst_enabled ? 1 : 0,
             billConfig.gst_type, billConfig.show_cashier_name ? 1 : 0, billConfig.gst_percentage, billConfig.row_height,
             billConfig.logo_position, billConfig.logo_size, billConfig.logo_opacity, billConfig.logo_base64,
             billConfig.show_line_separators ? 1 : 0, billConfig.show_token ? 1 : 0, billConfig.sep_header ? 1 : 0, billConfig.sep_meta ? 1 : 0,
             billConfig.sep_token ? 1 : 0, billConfig.sep_table_header ? 1 : 0, billConfig.sep_table_body ? 1 : 0, billConfig.sep_subtotals ? 1 : 0,
             billConfig.sep_grand_total ? 1 : 0, billConfig.store_name_size, billConfig.address_size, billConfig.table_font_size, billConfig.total_font_size,
-            billConfig.dynamic_upi_qr ? 1 : 0, billConfig.static_upi_qr ? 1 : 0, billConfig.no_qr_print ? 1 : 0, billConfig.search_match_mode
+            billConfig.dynamic_upi_qr ? 1 : 0, billConfig.static_upi_qr ? 1 : 0, billConfig.no_qr_print ? 1 : 0, billConfig.search_match_mode,
+            billConfig.global_font_family, billConfig.store_name_bold ? 1 : 0, billConfig.address_bold ? 1 : 0, billConfig.table_bold ? 1 : 0, billConfig.total_bold ? 1 : 0, billConfig.footer_bold ? 1 : 0
           ]
         );
       }
@@ -338,29 +427,36 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
       const existingKot = await db.select<any[]>("SELECT id FROM kot_settings WHERE id = 1");
       if (existingKot.length > 0) {
         await db.execute(
-          `UPDATE kot_settings SET 
+          `UPDATE kot_settings SET
             header_font_family = $1, header_font_size = $2, body_font_family = $3, body_font_size = $4,
             row_height = $5, show_line_separators = $6, show_token = $7, sep_token = $8, sep_header = $9,
-            sep_meta = $10, sep_table_header = $11, sep_table_body = $12, table_font_size = $13
+            sep_meta = $10, sep_table_header = $11, sep_table_body = $12, table_font_size = $13,
+            show_kot_title = $14, show_bill_no = $15, show_order_type = $16, show_table = $17, show_date = $18,
+            meta_font_size = $19, title_bold = $20, meta_bold = $21, items_bold = $22, meta_two_column = $23
           WHERE id = 1`,
           [
             kotConfig.header_font_family, kotConfig.header_font_size, kotConfig.body_font_family, kotConfig.body_font_size,
             kotConfig.row_height, kotConfig.show_line_separators ? 1 : 0, kotConfig.show_token ? 1 : 0,
             kotConfig.sep_token ? 1 : 0, kotConfig.sep_header ? 1 : 0, kotConfig.sep_meta ? 1 : 0,
-            kotConfig.sep_table_header ? 1 : 0, kotConfig.sep_table_body ? 1 : 0, kotConfig.table_font_size
+            kotConfig.sep_table_header ? 1 : 0, kotConfig.sep_table_body ? 1 : 0, kotConfig.table_font_size,
+            kotConfig.show_kot_title ? 1 : 0, kotConfig.show_bill_no ? 1 : 0, kotConfig.show_order_type ? 1 : 0, kotConfig.show_table ? 1 : 0, kotConfig.show_date ? 1 : 0,
+            kotConfig.meta_font_size, kotConfig.title_bold ? 1 : 0, kotConfig.meta_bold ? 1 : 0, kotConfig.items_bold ? 1 : 0, kotConfig.meta_two_column ? 1 : 0
           ]
         );
       } else {
         await db.execute(
           `INSERT INTO kot_settings (
             id, header_font_family, header_font_size, body_font_family, body_font_size, row_height, show_line_separators, show_token,
-            sep_token, sep_header, sep_meta, sep_table_header, sep_table_body, table_font_size
-          ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+            sep_token, sep_header, sep_meta, sep_table_header, sep_table_body, table_font_size,
+            show_kot_title, show_bill_no, show_order_type, show_table, show_date, meta_font_size, title_bold, meta_bold, items_bold, meta_two_column
+          ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)`,
           [
             kotConfig.header_font_family, kotConfig.header_font_size, kotConfig.body_font_family, kotConfig.body_font_size,
             kotConfig.row_height, kotConfig.show_line_separators ? 1 : 0, kotConfig.show_token ? 1 : 0,
             kotConfig.sep_token ? 1 : 0, kotConfig.sep_header ? 1 : 0, kotConfig.sep_meta ? 1 : 0,
-            kotConfig.sep_table_header ? 1 : 0, kotConfig.sep_table_body ? 1 : 0, kotConfig.table_font_size
+            kotConfig.sep_table_header ? 1 : 0, kotConfig.sep_table_body ? 1 : 0, kotConfig.table_font_size,
+            kotConfig.show_kot_title ? 1 : 0, kotConfig.show_bill_no ? 1 : 0, kotConfig.show_order_type ? 1 : 0, kotConfig.show_table ? 1 : 0, kotConfig.show_date ? 1 : 0,
+            kotConfig.meta_font_size, kotConfig.title_bold ? 1 : 0, kotConfig.meta_bold ? 1 : 0, kotConfig.items_bold ? 1 : 0, kotConfig.meta_two_column ? 1 : 0
           ]
         );
       }
@@ -471,50 +567,35 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
             </div>
           </div>
 
-          {/* Receipt Fonts & Sizes */}
+          {/* Global Font */}
           <div className="sx-group">
-            <div className="sx-group-head"><Type size={14} /> Receipt Fonts &amp; Sizes</div>
-            <div className="sx-grid cols-3">
-              <div className="sx-field">
-                <label>Header Font</label>
-                <select value={billConfig.header_font_family} onChange={(e) => setBillConfig({ ...billConfig, header_font_family: e.target.value })} className="sx-select">
-                  {fontFamilies.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                </select>
-              </div>
-              <div className="sx-field">
-                <label>Body Font</label>
-                <select value={billConfig.body_font_family} onChange={(e) => setBillConfig({ ...billConfig, body_font_family: e.target.value })} className="sx-select">
-                  {fontFamilies.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                </select>
-              </div>
-              <div className="sx-field">
-                <label>Footer Font</label>
-                <select value={billConfig.footer_font_family} onChange={(e) => setBillConfig({ ...billConfig, footer_font_family: e.target.value })} className="sx-select">
-                  {fontFamilies.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                </select>
-              </div>
-            </div>
+            <div className="sx-group-head"><Type size={14} /> Font (Bill &amp; KOT)</div>
             <div className="sx-grid">
               <div className="sx-field">
-                <label>Hotel Name Size</label>
-                <select value={billConfig.store_name_size} onChange={(e) => setBillConfig({ ...billConfig, store_name_size: e.target.value })} className="sx-select">{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
+                <label>Font Family — applies to entire Bill and KOT</label>
+                <select
+                  value={billConfig.global_font_family}
+                  onChange={(e) => setBillConfig({ ...billConfig, global_font_family: e.target.value, header_font_family: e.target.value, body_font_family: e.target.value, footer_font_family: e.target.value })}
+                  className="sx-select"
+                >
+                  {fontFamilies.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                </select>
+                <p className="settings-hint" style={{ marginTop: '0.35rem' }}>
+                  One font for the whole receipt and kitchen ticket. Use the per-section controls below for size and bold.
+                </p>
               </div>
-              <div className="sx-field">
-                <label>Address / Meta Size</label>
-                <select value={billConfig.address_size} onChange={(e) => setBillConfig({ ...billConfig, address_size: e.target.value })} className="sx-select">{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
-              </div>
-              <div className="sx-field">
-                <label>Table Items Size</label>
-                <select value={billConfig.table_font_size} onChange={(e) => setBillConfig({ ...billConfig, table_font_size: e.target.value })} className="sx-select">{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
-              </div>
-              <div className="sx-field">
-                <label>Totals Size</label>
-                <select value={billConfig.total_font_size} onChange={(e) => setBillConfig({ ...billConfig, total_font_size: e.target.value })} className="sx-select">{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
-              </div>
-              <div className="sx-field">
-                <label>Footer Size</label>
-                <select value={billConfig.footer_font_size} onChange={(e) => setBillConfig({ ...billConfig, footer_font_size: e.target.value })} className="sx-select">{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
-              </div>
+            </div>
+          </div>
+
+          {/* Receipt Section Sizes & Bold */}
+          <div className="sx-group">
+            <div className="sx-group-head"><Type size={14} /> Receipt — Section Size &amp; Bold</div>
+            <div className="sx-grid cols-2">
+              <StyleRow label="Hotel Name" size={billConfig.store_name_size} onSize={(v) => setBillConfig({ ...billConfig, store_name_size: v })} bold={billConfig.store_name_bold} onBold={(v) => setBillConfig({ ...billConfig, store_name_bold: v })} />
+              <StyleRow label="Address / Meta" size={billConfig.address_size} onSize={(v) => setBillConfig({ ...billConfig, address_size: v })} bold={billConfig.address_bold} onBold={(v) => setBillConfig({ ...billConfig, address_bold: v })} />
+              <StyleRow label="Table Items" size={billConfig.table_font_size} onSize={(v) => setBillConfig({ ...billConfig, table_font_size: v })} bold={billConfig.table_bold} onBold={(v) => setBillConfig({ ...billConfig, table_bold: v })} />
+              <StyleRow label="Totals" size={billConfig.total_font_size} onSize={(v) => setBillConfig({ ...billConfig, total_font_size: v })} bold={billConfig.total_bold} onBold={(v) => setBillConfig({ ...billConfig, total_bold: v })} />
+              <StyleRow label="Footer" size={billConfig.footer_font_size} onSize={(v) => setBillConfig({ ...billConfig, footer_font_size: v })} bold={billConfig.footer_bold} onBold={(v) => setBillConfig({ ...billConfig, footer_bold: v })} />
             </div>
           </div>
 
@@ -632,47 +713,47 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
             </div>
           </div>
 
-          {/* KOT Fonts */}
+          {/* KOT Content Visibility */}
           <div className="sx-group">
-            <div className="sx-group-head"><Settings2 size={14} /> KOT — Fonts &amp; Sizes</div>
+            <div className="sx-group-head"><Eye size={14} /> KOT — Content Visibility</div>
             <div className="sx-grid cols-3">
+              <label className="sx-check"><input type="checkbox" checked={kotConfig.show_kot_title} onChange={(e) => setKotConfig({...kotConfig, show_kot_title: e.target.checked})} /> Show "KOT" Title</label>
+              <label className="sx-check"><input type="checkbox" checked={kotConfig.show_token} onChange={(e) => setKotConfig({...kotConfig, show_token: e.target.checked})} /> Show Token Number</label>
+              <label className="sx-check"><input type="checkbox" checked={kotConfig.show_bill_no} onChange={(e) => setKotConfig({...kotConfig, show_bill_no: e.target.checked})} /> Show Bill No</label>
+              <label className="sx-check"><input type="checkbox" checked={kotConfig.show_order_type} onChange={(e) => setKotConfig({...kotConfig, show_order_type: e.target.checked})} /> Show Order Type</label>
+              <label className="sx-check"><input type="checkbox" checked={kotConfig.show_table} onChange={(e) => setKotConfig({...kotConfig, show_table: e.target.checked})} /> Show Table</label>
+              <label className="sx-check"><input type="checkbox" checked={kotConfig.show_date} onChange={(e) => setKotConfig({...kotConfig, show_date: e.target.checked})} /> Show Date / Time</label>
+              <label className="sx-check sx-span-full" style={{ alignSelf: 'flex-start' }}><input type="checkbox" checked={kotConfig.meta_two_column} onChange={(e) => setKotConfig({...kotConfig, meta_two_column: e.target.checked})} /> Pack details in 2 columns (saves paper) <span className="sx-hint">Bill No / Order / Table / Date side-by-side</span></label>
+            </div>
+          </div>
+
+          {/* KOT Section Sizes & Bold */}
+          <div className="sx-group">
+            <div className="sx-group-head"><Settings2 size={14} /> KOT — Section Size &amp; Bold</div>
+            <div className="sx-grid cols-2">
+              <StyleRow label="KOT Title" size={kotConfig.header_font_size} onSize={(v) => setKotConfig({ ...kotConfig, header_font_size: v })} bold={kotConfig.title_bold} onBold={(v) => setKotConfig({ ...kotConfig, title_bold: v })} />
+              <StyleRow label="Details (Bill/Order/Table/Date)" size={kotConfig.meta_font_size} onSize={(v) => setKotConfig({ ...kotConfig, meta_font_size: v })} bold={kotConfig.meta_bold} onBold={(v) => setKotConfig({ ...kotConfig, meta_bold: v })} />
+              <StyleRow label="Items" size={kotConfig.table_font_size} onSize={(v) => setKotConfig({ ...kotConfig, table_font_size: v })} bold={kotConfig.items_bold} onBold={(v) => setKotConfig({ ...kotConfig, items_bold: v })} />
               <div className="sx-field">
-                <label>Header Font</label>
-                <select value={kotConfig.header_font_family} onChange={(e) => setKotConfig({ ...kotConfig, header_font_family: e.target.value })} className="sx-select">{fontFamilies.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}</select>
-              </div>
-              <div className="sx-field">
-                <label>Body Font</label>
-                <select value={kotConfig.body_font_family} onChange={(e) => setKotConfig({ ...kotConfig, body_font_family: e.target.value })} className="sx-select">{fontFamilies.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}</select>
-              </div>
-              <div className="sx-field">
-                <label>Row Height</label>
+                <label>Row Height (Item Spacing)</label>
                 <select value={kotConfig.row_height} onChange={(e) => setKotConfig({ ...kotConfig, row_height: e.target.value })} className="sx-select">
                   <option value="2px 0">Compact</option>
                   <option value="4px 0">Standard</option>
                   <option value="8px 0">Relaxed</option>
                 </select>
               </div>
-              <div className="sx-field">
-                <label>Header Size (KOT Title)</label>
-                <select value={kotConfig.header_font_size} onChange={(e) => setKotConfig({ ...kotConfig, header_font_size: e.target.value })} className="sx-select">{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
-              </div>
-              <div className="sx-field">
-                <label>Table Items Size</label>
-                <select value={kotConfig.table_font_size} onChange={(e) => setKotConfig({ ...kotConfig, table_font_size: e.target.value })} className="sx-select">{fontSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
-              </div>
             </div>
           </div>
 
-          {/* KOT Separators + Visibility */}
+          {/* KOT Separators */}
           <div className="sx-group">
             <div className="sx-group-head"><Scissors size={14} /> KOT — Line Separators</div>
             <div className="sx-grid cols-3">
               <label className="sx-check"><input type="checkbox" checked={kotConfig.sep_token} onChange={(e) => setKotConfig({...kotConfig, sep_token: e.target.checked})} /> Below Token Number</label>
               <label className="sx-check"><input type="checkbox" checked={kotConfig.sep_header} onChange={(e) => setKotConfig({...kotConfig, sep_header: e.target.checked})} /> Below KOT Title</label>
-              <label className="sx-check"><input type="checkbox" checked={kotConfig.sep_meta} onChange={(e) => setKotConfig({...kotConfig, sep_meta: e.target.checked})} /> Below Meta (Date/Table)</label>
+              <label className="sx-check"><input type="checkbox" checked={kotConfig.sep_meta} onChange={(e) => setKotConfig({...kotConfig, sep_meta: e.target.checked})} /> Below Details</label>
               <label className="sx-check"><input type="checkbox" checked={kotConfig.sep_table_header} onChange={(e) => setKotConfig({...kotConfig, sep_table_header: e.target.checked})} /> Below Column Names</label>
               <label className="sx-check"><input type="checkbox" checked={kotConfig.sep_table_body} onChange={(e) => setKotConfig({...kotConfig, sep_table_body: e.target.checked})} /> Below Item List</label>
-              <label className="sx-check"><input type="checkbox" checked={kotConfig.show_token} onChange={(e) => setKotConfig({...kotConfig, show_token: e.target.checked})} /> Show Token Number</label>
             </div>
           </div>
 
@@ -702,7 +783,7 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
             zIndex: 1,
             marginBottom: '2rem',
             flexShrink: 0,
-            fontFamily: billConfig.body_font_family
+            fontFamily: billConfig.global_font_family
           }}
         >
           {/* Top Logo */}
@@ -725,15 +806,15 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
           )}
 
           {/* Header Section */}
-          <div style={{ 
-            textAlign: 'center', 
+          <div style={{
+            textAlign: 'center',
             marginBottom: '10px',
-            fontFamily: billConfig.header_font_family,
+            fontFamily: billConfig.global_font_family,
             zIndex: 1
           }}>
-            <div style={{ fontWeight: 'normal', fontSize: billConfig.store_name_size }}>{storeSettings.hotel_name || "YOUR HOTEL NAME"}</div>
-            
-            <div style={{ fontSize: billConfig.address_size, marginTop: '4px' }}>
+            <div style={{ fontWeight: billConfig.store_name_bold ? 'bold' : 'normal', fontSize: billConfig.store_name_size }}>{storeSettings.hotel_name || "YOUR HOTEL NAME"}</div>
+
+            <div style={{ fontSize: billConfig.address_size, marginTop: '4px', fontWeight: billConfig.address_bold ? 'bold' : 'normal' }}>
               {billConfig.show_address && <div>{storeSettings.address || "123, Street Name, City"}</div>}
               {billConfig.show_phone && <div>Tel: {storeSettings.phone_number || "9876543210"}</div>}
               {billConfig.show_gst && storeSettings.gst_number && <div>GSTIN: {storeSettings.gst_number}</div>}
@@ -744,11 +825,11 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
           {billConfig.sep_header && <div style={{ borderTop: '1px dashed #000', margin: '8px 0', zIndex: 1 }}></div>}
 
           {/* Body Section */}
-          <div style={{ 
-            fontFamily: billConfig.body_font_family,
+          <div style={{
+            fontFamily: billConfig.global_font_family,
             zIndex: 1
           }}>
-            <div style={{ fontSize: billConfig.address_size }}>
+            <div style={{ fontSize: billConfig.address_size, fontWeight: billConfig.address_bold ? 'bold' : 'normal' }}>
                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                  <div>Bill No: 1234</div>
                  <div>Date: 26-Feb-2026</div>
@@ -770,13 +851,13 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
               </>
             )}
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', margin: '5px 0', fontSize: billConfig.table_font_size }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', margin: '5px 0', fontSize: billConfig.table_font_size, fontWeight: billConfig.table_bold ? 'bold' : 'normal' }}>
               <thead>
                 <tr style={{ borderBottom: billConfig.sep_table_header ? '1px dashed #000' : 'none' }}>
-                  <th style={{ textAlign: 'left', padding: billConfig.row_height, fontWeight: 'normal' }}>Item</th>
-                  <th style={{ textAlign: 'right', padding: billConfig.row_height, fontWeight: 'normal' }}>Qty</th>
-                  <th style={{ textAlign: 'right', padding: billConfig.row_height, fontWeight: 'normal' }}>Price</th>
-                  <th style={{ textAlign: 'right', padding: billConfig.row_height, fontWeight: 'normal' }}>Amt</th>
+                  <th style={{ textAlign: 'left', padding: billConfig.row_height, fontWeight: 'inherit' }}>Item</th>
+                  <th style={{ textAlign: 'right', padding: billConfig.row_height, fontWeight: 'inherit' }}>Qty</th>
+                  <th style={{ textAlign: 'right', padding: billConfig.row_height, fontWeight: 'inherit' }}>Price</th>
+                  <th style={{ textAlign: 'right', padding: billConfig.row_height, fontWeight: 'inherit' }}>Amt</th>
                 </tr>
               </thead>
               <tbody>
@@ -803,7 +884,7 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
 
             {billConfig.sep_table_body && <div style={{ borderTop: '1px dashed #000', margin: '8px 0' }}></div>}
 
-            <div style={{ fontSize: billConfig.table_font_size }}>
+            <div style={{ fontSize: billConfig.total_font_size, fontWeight: billConfig.total_bold ? 'bold' : 'normal' }}>
                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                  <span>Subtotal:</span>
                  <span>510.00</span>
@@ -842,11 +923,12 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
           </div>
 
           {/* Footer Section */}
-          <div style={{ 
-            textAlign: 'center', 
-            marginTop: '10px', 
-            fontFamily: billConfig.footer_font_family,
+          <div style={{
+            textAlign: 'center',
+            marginTop: '10px',
+            fontFamily: billConfig.global_font_family,
             fontSize: billConfig.footer_font_size,
+            fontWeight: billConfig.footer_bold ? 'bold' : 'normal',
             zIndex: 1
           }}>
             {billConfig.footer_message || "Thank you! Visit again."}
@@ -858,9 +940,9 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
               display: 'flex', 
               flexDirection: 'column', 
               alignItems: 'center', 
-              marginTop: '15px', 
+              marginTop: '15px',
               paddingTop: '15px',
-              fontFamily: billConfig.body_font_family,
+              fontFamily: billConfig.global_font_family,
               zIndex: 1
             }}>
               <div style={{ fontSize: '0.85em', marginBottom: '5px' }}>Scan to Pay via UPI</div>
@@ -901,10 +983,10 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
           }}
         >
           {/* Header Section */}
-          <div style={{ 
-            textAlign: 'center', 
+          <div style={{
+            textAlign: 'center',
             marginBottom: '10px',
-            fontFamily: kotConfig.header_font_family,
+            fontFamily: billConfig.global_font_family,
             zIndex: 1
           }}>
             {kotConfig.show_token && (
@@ -913,34 +995,50 @@ export default function BillSettings({ db, activeTab, setUnsavedChanges, setTrig
                 {kotConfig.sep_token && <div style={{ borderTop: '1px dashed #000', margin: '10px 0', zIndex: 1 }}></div>}
               </>
             )}
-            <div style={{ fontWeight: 'normal', fontSize: kotConfig.header_font_size }}>--- KOT ---</div>
-            {kotConfig.sep_header && <div style={{ borderTop: '1px dashed #000', margin: '10px 0', zIndex: 1 }}></div>}
+            {kotConfig.show_kot_title && (
+              <>
+                <div style={{ fontWeight: kotConfig.title_bold ? 'bold' : 'normal', fontSize: kotConfig.header_font_size }}>--- KOT ---</div>
+                {kotConfig.sep_header && <div style={{ borderTop: '1px dashed #000', margin: '10px 0', zIndex: 1 }}></div>}
+              </>
+            )}
           </div>
 
           {/* Body Section */}
-          <div style={{ 
-            fontFamily: kotConfig.body_font_family,
-            fontSize: kotConfig.table_font_size,
+          <div style={{
+            fontFamily: billConfig.global_font_family,
+            fontSize: kotConfig.meta_font_size,
+            fontWeight: kotConfig.meta_bold ? 'bold' : 'normal',
             zIndex: 1
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <div>Bill No: 1234</div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <div>Order Type: Dining</div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <div>Table: T2</div>
-            </div>
-            <div>Date: 26/02/2026, 12:30:00 pm</div>
+            {(() => {
+              const meta: string[] = [];
+              if (kotConfig.show_bill_no) meta.push("Bill No: 1234");
+              if (kotConfig.show_order_type) meta.push("Order: Dining");
+              if (kotConfig.show_table) meta.push("Table: T2");
+              if (kotConfig.show_date) meta.push("Date: 26/02 12:30 pm");
+              if (meta.length === 0) return null;
+              if (kotConfig.meta_two_column) {
+                const rows = [];
+                for (let i = 0; i < meta.length; i += 2) {
+                  rows.push(
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                      <span>{meta[i]}</span>
+                      <span style={{ textAlign: 'right' }}>{meta[i + 1] || ''}</span>
+                    </div>
+                  );
+                }
+                return rows;
+              }
+              return meta.map((m, i) => <div key={i}>{m}</div>);
+            })()}
 
-            {kotConfig.sep_meta && <div style={{ borderTop: '1px dashed #000', margin: '8px 0' }}></div>}
+            {((kotConfig.show_bill_no || kotConfig.show_order_type || kotConfig.show_table || kotConfig.show_date) && kotConfig.sep_meta) && <div style={{ borderTop: '1px dashed #000', margin: '8px 0' }}></div>}
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', margin: '5px 0' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', margin: '5px 0', fontSize: kotConfig.table_font_size, fontWeight: kotConfig.items_bold ? 'bold' : 'normal' }}>
               <thead>
                 <tr style={{ borderBottom: kotConfig.sep_table_header ? '1px dashed #000' : 'none' }}>
-                  <th style={{ textAlign: 'left', padding: kotConfig.row_height, fontWeight: 'normal' }}>Item</th>
-                  <th style={{ textAlign: 'right', padding: kotConfig.row_height, fontWeight: 'normal' }}>Qty</th>
+                  <th style={{ textAlign: 'left', padding: kotConfig.row_height, fontWeight: 'inherit' }}>Item</th>
+                  <th style={{ textAlign: 'right', padding: kotConfig.row_height, fontWeight: 'inherit' }}>Qty</th>
                 </tr>
               </thead>
               <tbody>

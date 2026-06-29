@@ -253,9 +253,9 @@
 /* Extracted from Reports.tsx */
 
               @keyframes pulseRed {
-                 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-                 70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
-                 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+                 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 40%, transparent); }
+                 70% { box-shadow: 0 0 0 20px color-mix(in srgb, var(--danger) 0%, transparent); }
+                 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 0%, transparent); }
               }
               .upgrade-btn {
                  display: inline-flex;
@@ -269,13 +269,13 @@
                  border-radius: var(--radius-lg);
                  text-decoration: none;
                  transition: all var(--transition-base);
-                 box-shadow: 0 4px 15px -3px rgba(239, 68, 68, 0.5);
+                 box-shadow: 0 4px 15px -3px color-mix(in srgb, var(--danger) 50%, transparent);
                  border: var(--border-thin) solid var(--border-subtle);
                  animation: pulseRed 2s infinite;
               }
               .upgrade-btn:hover {
                  transform: translateY(-2px);
-                 box-shadow: 0 8px 25px -5px rgba(239, 68, 68, 0.6);
+                 box-shadow: 0 8px 25px -5px color-mix(in srgb, var(--danger) 60%, transparent);
                  filter: brightness(1.1);
               }
             

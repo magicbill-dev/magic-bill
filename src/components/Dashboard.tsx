@@ -287,7 +287,7 @@ export default function Dashboard({ db }: DashboardProps) {
                         background: 'var(--danger-subtle)', 
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         marginBottom: 'var(--space-6)',
-                        border: 'var(--border-thin) solid rgba(239, 68, 68, 0.2)'
+                        border: 'var(--border-thin) solid color-mix(in srgb, var(--danger) 30%, transparent)'
                     }}>
                         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
